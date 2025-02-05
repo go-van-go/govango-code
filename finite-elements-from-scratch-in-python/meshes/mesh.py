@@ -9,21 +9,21 @@ class Mesh3d:
         self.num_vertices = 0
         self.num_elements = 0
         self.vertexCoordinates = []
+        self.x = []
+        self.y = []
+        self.z = []
+        self.edgeVertices = []
         self.element2vertices = []
         self.element2elements = []
         self.element2faces = []
-        self.boundaryFaces = []
         self.faceNormals = []
         self.jacobians = {}
         self.determinants = {}
         
         self._extract_mesh_info()
         self._build_connectivityMatricies()
-        self._compute_boundaryFaces()
-        self._compute_faceNormals()
         self._compute_jacobians()
-        self._compute_normals()
-        
+
         gmsh.finalize()
 
     def _extract_mesh_info(self):
@@ -31,18 +31,25 @@ class Mesh3d:
         ntags, coords, _ = gmsh.model.mesh.getNodes(4)
         self.num_vertices= len(ntags)
         self.vertexCoordinates = coords.reshape(-1, 3)
+        self.x = self.vertexCoordinates[:, 0]
+        self.y = self.vertexCoordinates[:, 1]
+        self.z = self.vertexCoordinates[:, 2]
+
+        # get edges
+        edgeVertices = gmsh.model.mesh.getElementEdgeNodes(4)
+        self.edgeVertices = edgeVertices.reshape(int(len(edgeVertices)/2), 2).astype(int) - 1
 
         # get element information
         # get all the nodes from tetrahedrons (elementType = 4)
         nodeTags, _, _ = gmsh.model.mesh.getNodesByElementType(4) 
         self.num_elements = int(len(nodeTags)/4) 
-        self.elements2vertices = nodeTags.reshape(-1, 4).astype(int)
+        self.element2vertices = nodeTags.reshape(-1, 4).astype(int) - 1
 
     def _build_connectivityMatricies(self):
         """tetrahedral face connect algorithm from Toby Isaac"""
         num_faces = 4
         K = self.num_elements 
-        EtoV = self.elements2vertices
+        EtoV = self.element2vertices
         num_vertices = self.num_vertices 
         
         # create list of all faces
@@ -51,7 +58,7 @@ class Mesh3d:
                             EtoV[:, [1, 2, 3]],
                             EtoV[:, [0, 2, 3]]))
         # sort each row from low to high for hash algorithm
-        faceVertices = np.sort(faceVertices, axis=1) - 1
+        faceVertices = np.sort(faceVertices, axis=1)
          
         # unique hash for each set of three faces by their vertex numbers
         faceHashes = faceVertices[:, 0] * num_vertices * num_vertices  + \
@@ -91,13 +98,19 @@ class Mesh3d:
         EtoE = EtoE_tmp.reshape(EtoE.shape, order='F')
         EtoF = EtoF_tmp.reshape(EtoF.shape, order='F')
 
-        breakpoint()
-
         self.element2elements = EtoE
         self.element2faces = EtoF
+
+    def _compute_jacobians(self):
+        # get local coordinates of the verticies in the
+        # reference tetrahedron
+        name, dim, order, numNodes, localCoords, _ = gmsh.model.mesh.getElementProperties(4)
+        jacobians, determinants, _ = gmsh.model.mesh.getJacobians(4, localCoords)
+        self.jacobians = jacobians.reshape(-1, 3, 3)
+        self.determinants = determinants
+        pass
         
 
-        
 if __name__ == "__main__":
     import sys
 
