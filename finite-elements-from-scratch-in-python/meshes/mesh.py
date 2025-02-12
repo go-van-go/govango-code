@@ -7,15 +7,15 @@ class Mesh3d:
         gmsh.open(msh_file)
 
         self.num_vertices = 0
-        self.num_elements = 0
+        self.num_cells= 0
         self.vertexCoordinates = []
         self.x = []
         self.y = []
         self.z = []
         self.edgeVertices = []
-        self.element2vertices = []
-        self.element2elements = []
-        self.element2faces = []
+        self.cell2vertices = []
+        self.cell2cells = []
+        self.cell2faces = []
         self.faceNormals = []
         self.jacobians = {}
         self.determinants = {}
@@ -42,14 +42,14 @@ class Mesh3d:
         # get element information
         # get all the nodes from tetrahedrons (elementType = 4)
         nodeTags, _, _ = gmsh.model.mesh.getNodesByElementType(4) 
-        self.num_elements = int(len(nodeTags)/4) 
-        self.element2vertices = nodeTags.reshape(-1, 4).astype(int) - 1
+        self.num_cells = int(len(nodeTags)/4) 
+        self.cell2vertices = nodeTags.reshape(-1, 4).astype(int) - 1
 
     def _build_connectivityMatricies(self):
         """tetrahedral face connect algorithm from Toby Isaac"""
         num_faces = 4
-        K = self.num_elements 
-        EtoV = self.element2vertices
+        K = self.num_cells
+        EtoV = self.cell2vertices
         num_vertices = self.num_vertices 
         
         # create list of all faces
@@ -65,10 +65,10 @@ class Mesh3d:
                      faceVertices[:, 1] * num_vertices + \
                      faceVertices[:, 2] + 1
 
-        # vertex id from 1 - num_vertices * num_elements
+        # vertex id from 1 - num_faces* num_cells
         vertex_ids = np.arange(1, num_faces*K+1)
        
-        # set up default element to element and element to faces connectivity
+        # set up default cell to cell and cell to faces connectivity
         EtoE = np.tile(np.arange(1, K+1)[:, np.newaxis], (1, num_faces))
         EtoF = np.tile(np.arange(1, num_faces+1), (K, 1))
 
@@ -98,8 +98,8 @@ class Mesh3d:
         EtoE = EtoE_tmp.reshape(EtoE.shape, order='F')
         EtoF = EtoF_tmp.reshape(EtoF.shape, order='F')
 
-        self.element2elements = EtoE
-        self.element2faces = EtoF
+        self.cell2cells = EtoE
+        self.cell2faces = EtoF
 
     def _compute_jacobians(self):
         # get local coordinates of the verticies in the
