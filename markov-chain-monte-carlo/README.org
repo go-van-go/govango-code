@@ -1,0 +1,3 @@
+#+TITLE: Markov chain Monte Carlo explained with Python
+#+SUBTITLE: A simple example
+main.py contains the code for the [[https://govango.org/blogs/markov-chain-monte-carlo-explained-with-python][MCMC - Metropolis-Hastings blog post]]
