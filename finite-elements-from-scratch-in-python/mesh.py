@@ -9,13 +9,16 @@ class Mesh3d:
 
         self.dim = 3
         self.n = 3  # polynomial order
-        self.reference_element = LagrangeElement(d,n)
+        self.reference_element = LagrangeElement(self.dim,self.n)
         self.num_vertices = 0
         self.num_cells= 0
         self.vertexCoordinates = []
-        self.x = []
-        self.y = []
-        self.z = []
+        self.x_vertex = [] # vertex x coordinates
+        self.y_vertex = [] # vertex y coordinates
+        self.z_vertex = [] # vertex z coordinates
+        self.x = [] # nodal x coordinates
+        self.y = [] # nodal y coordinates
+        self.z = [] # nodal z coordinates
         self.edgeVertices = []
         self.cell2vertices = []
         self.cell2cells = []
@@ -26,7 +29,8 @@ class Mesh3d:
         self._extract_mesh_info()
         self._build_connectivityMatricies()
         self._compute_jacobians()
-        self._compute_surfaceJacobian()
+        #self._compute_surfaceJacobian()
+        self._get_mapped_nodal_cordinates()
 
         gmsh.finalize()
 
@@ -35,9 +39,9 @@ class Mesh3d:
         ntags, coords, _ = gmsh.model.mesh.getNodes(4)
         self.num_vertices= len(ntags)
         self.vertexCoordinates = coords.reshape(-1, 3)
-        self.x = self.vertexCoordinates[:, 0]
-        self.y = self.vertexCoordinates[:, 1]
-        self.z = self.vertexCoordinates[:, 2]
+        self.x_vertex = self.vertexCoordinates[:, 0]
+        self.y_vertex = self.vertexCoordinates[:, 1]
+        self.z_vertex = self.vertexCoordinates[:, 2]
 
         # get edges
         edgeVertices = gmsh.model.mesh.getElementEdgeNodes(4)
@@ -112,7 +116,34 @@ class Mesh3d:
         jacobians, determinants, _ = gmsh.model.mesh.getJacobians(4, localCoords)
         self.jacobians = jacobians.reshape(-1, 3, 3)
         self.determinants = determinants
+
         
+    def _get_mapped_nodal_cordinates(self):
+        """ returns x, y, and z arrays of coordinates of nodes from EToV and VX, VY, VZ, arrays"""
+        CtoV = self.cell2vertices
+        vx = self.x_vertex
+        vy = self.y_vertex
+        vz = self.z_vertex
+        r = self.reference_element.r
+        s = self.reference_element.s
+        t = self.reference_element.t
+
+        # extract vertex numbers from elements
+        va = CtoV[:, 0].T
+        vb = CtoV[:, 1].T
+        vc = CtoV[:, 2].T
+        vd = CtoV[:, 3].T
+        
+        vx = vx.reshape(-1, 1)
+        vy = vy.reshape(-1, 1)
+        vz = vz.reshape(-1, 1)
+        
+        # map r, s, t from standard tetrahedron to x, y, z coordinates for each element
+        self.x = (0.5 * (-(1 + r + s + t) * vx[va] + (1 + r) * vx[vb] + (1 + s) * vx[vc] + (1 + t) * vx[vd])).T
+        self.y = (0.5 * (-(1 + r + s + t) * vy[va] + (1 + r) * vy[vb] + (1 + s) * vy[vc] + (1 + t) * vy[vd])).T
+        self.z = (0.5 * (-(1 + r + s + t) * vz[va] + (1 + r) * vz[vb] + (1 + s) * vz[vc] + (1 + t) * vz[vd])).T
+        
+        breakpoint()
 
 if __name__ == "__main__":
     import sys
