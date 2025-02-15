@@ -1,24 +1,24 @@
 import numpy as np
 import gmsh
-from finite_elements import LagrangeElement
 
 class Mesh3d:
-    def __init__(self, msh_file):
+    def __init__(self, msh_file, finiteElement):
         gmsh.initialize()
         gmsh.open(msh_file)
-
-        self.dim = 3
-        self.n = 3  # polynomial order
-        self.reference_element = LagrangeElement(self.dim,self.n)
+        
+        self.msh_file = msh_file
+        self.reference_element = finiteElement 
+        self.dim = self.reference_element.d
+        self.n = self.reference_element.n  # polynomial order
         self.num_vertices = 0
         self.num_cells= 0
         self.vertexCoordinates = []
         self.x_vertex = [] # vertex x coordinates
         self.y_vertex = [] # vertex y coordinates
         self.z_vertex = [] # vertex z coordinates
-        self.x = [] # nodal x coordinates
-        self.y = [] # nodal y coordinates
-        self.z = [] # nodal z coordinates
+        self.x = []  # nodal x coordinates
+        self.y = []  # nodal y coordinates
+        self.z = []  # nodal z coordinates
         self.edgeVertices = []
         self.cell2vertices = []
         self.cell2cells = []
@@ -57,14 +57,14 @@ class Mesh3d:
         """tetrahedral face connect algorithm from Toby Isaac"""
         num_faces = 4
         K = self.num_cells
-        EtoV = self.cell2vertices
+        CtoV = self.cell2vertices
         num_vertices = self.num_vertices 
         
         # create list of all faces
-        faceVertices = np.vstack((EtoV[:, [0, 1, 2]],
-                            EtoV[:, [0, 1, 3]],
-                            EtoV[:, [1, 2, 3]],
-                            EtoV[:, [0, 2, 3]]))
+        faceVertices = np.vstack((CtoV[:, [0, 1, 2]],
+                            CtoV[:, [0, 1, 3]],
+                            CtoV[:, [1, 2, 3]],
+                            CtoV[:, [0, 2, 3]]))
         # sort each row from low to high for hash algorithm
         faceVertices = np.sort(faceVertices, axis=1)
          
@@ -77,15 +77,15 @@ class Mesh3d:
         vertex_ids = np.arange(1, num_faces*K+1)
        
         # set up default cell to cell and cell to faces connectivity
-        EtoE = np.tile(np.arange(1, K+1)[:, np.newaxis], (1, num_faces))
-        EtoF = np.tile(np.arange(1, num_faces+1), (K, 1))
+        CtoC = np.tile(np.arange(1, K+1)[:, np.newaxis], (1, num_faces))
+        CtoF = np.tile(np.arange(1, num_faces+1), (K, 1))
 
         # build a master matrix (mappingTable) that we will solve by 
         # sorting by one column to create the connectivity matricies
         mappingTable = np.column_stack((faceHashes,
                                         vertex_ids,
-                                        np.ravel(EtoE, order='F'),
-                                        np.ravel(EtoF, order='F')))
+                                        np.ravel(CtoC, order='F'),
+                                        np.ravel(CtoF, order='F')))
         
         # Now we sort by global face number.
         sorted_mapTable= np.array(sorted(mappingTable, key=lambda x: (x[0], x[1])))
@@ -98,16 +98,16 @@ class Mesh3d:
         matchR = np.vstack((sorted_mapTable[matches + 1], sorted_mapTable[matches]))
         
         # insert matches
-        EtoE_tmp = np.ravel(EtoE, order='F') - 1
-        EtoF_tmp = np.ravel(EtoF, order='F') - 1
-        EtoE_tmp[matchL[:, 1] - 1] = (matchR[:, 2] - 1)
-        EtoF_tmp[matchL[:, 1] - 1] = (matchR[:, 3] - 1)
+        CtoC_tmp = np.ravel(CtoC, order='F') - 1
+        CtoF_tmp = np.ravel(CtoF, order='F') - 1
+        CtoC_tmp[matchL[:, 1] - 1] = (matchR[:, 2] - 1)
+        CtoF_tmp[matchL[:, 1] - 1] = (matchR[:, 3] - 1)
         
-        EtoE = EtoE_tmp.reshape(EtoE.shape, order='F')
-        EtoF = EtoF_tmp.reshape(EtoF.shape, order='F')
+        CtoC = CtoC_tmp.reshape(CtoC.shape, order='F')
+        CtoF = CtoF_tmp.reshape(CtoF.shape, order='F')
 
-        self.cell2cells = EtoE
-        self.cell2faces = EtoF
+        self.cell2cells = CtoC
+        self.cell2faces = CtoF
 
     def _compute_jacobians(self):
         # get local coordinates of the verticies in the
@@ -139,14 +139,14 @@ class Mesh3d:
         vz = vz.reshape(-1, 1)
         
         # map r, s, t from standard tetrahedron to x, y, z coordinates for each element
-        self.x = (0.5 * (-(1 + r + s + t) * vx[va] + (1 + r) * vx[vb] + (1 + s) * vx[vc] + (1 + t) * vx[vd])).T
-        self.y = (0.5 * (-(1 + r + s + t) * vy[va] + (1 + r) * vy[vb] + (1 + s) * vy[vc] + (1 + t) * vy[vd])).T
-        self.z = (0.5 * (-(1 + r + s + t) * vz[va] + (1 + r) * vz[vb] + (1 + s) * vz[vc] + (1 + t) * vz[vd])).T
+        self.x = ((1 - r - s - t) * vx[va] + r * vx[vb] + s * vx[vc] + t * vx[vd]).T
+        self.y = ((1 - r - s - t) * vy[va] + r * vy[vb] + s * vy[vc] + t * vy[vd]).T
+        self.z = ((1 - r - s - t) * vz[va] + r * vz[vb] + s * vz[vc] + t * vz[vd]).T
         
-        breakpoint()
 
 if __name__ == "__main__":
     import sys
+    from finite_elements import LagrangeElement
 
     if len(sys.argv) > 1:
         mesh_file = sys.argv[1]
@@ -161,4 +161,6 @@ if __name__ == "__main__":
         mesh_file = "default.msh"
         gmsh.finalize()
     
-    mesh = Mesh3d(mesh_file)
+    dim = 3
+    n = 3
+    mesh = Mesh3d(mesh_file, LagrangeElement(dim,n))

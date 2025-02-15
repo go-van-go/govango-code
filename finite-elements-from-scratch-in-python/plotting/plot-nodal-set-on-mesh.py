@@ -1,29 +1,41 @@
 import matplotlib.pyplot as plt
 import gmsh
+import pyvista as pv
+import numpy as np
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
-def plot_nodal_set(mesh):
+def plot_nodal_set_pyvista(mesh):
+    # Create a PyVista plotter
+    plotter = pv.Plotter()
+
+    # Extract nodal points
+    nodal_points = np.column_stack((mesh.x.flatten(), mesh.y.flatten(), mesh.z.flatten()))
+    
+    # Add the nodal points
+    plotter.add_points(nodal_points, color="red", point_size=5, render_points_as_spheres=True)
+
+    # Add edges
+    for edge in mesh.edgeVertices:
+        p1 = (mesh.x_vertex[edge[0]], mesh.y_vertex[edge[0]], mesh.z_vertex[edge[0]])
+        p2 = (mesh.x_vertex[edge[1]], mesh.y_vertex[edge[1]], mesh.z_vertex[edge[1]])
+        line = pv.Line(p1, p2)
+        plotter.add_mesh(line, color="black", line_width=2)
+
+    # Show the plot
+    plotter.show()
+
+def plot_nodal_set_matplotlib(mesh):
     x = mesh.x.flatten()
     y = mesh.y.flatten()
     z = mesh.z.flatten()
-
-    vx = mesh.x_vertex 
-    vy = mesh.y_vertex 
-    vz = mesh.z_vertex 
-
-    r = mesh.reference_element.r
-    s = mesh.reference_element.s
-    t = mesh.reference_element.t
 
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
     
     # Plot the nodal points
     ax.scatter(x, y, z, label='Nodal Points')
-    ax.scatter(vx, vy, vz, color='r', label='Vertices')
-    ax.scatter(r, s, t, color='b', label='reference')
 
     # Plot the edges
     edge_coords = []
@@ -51,6 +63,7 @@ if __name__ == "__main__":
     sys.path.append('/home/lj/writing/govango/govango-code/finite-elements-from-scratch-in-python')
     
     from mesh import Mesh3d 
+    from finite_elements import LagrangeElement
 
     if len(sys.argv) > 1:
         mesh_file = sys.argv[1]
@@ -66,7 +79,10 @@ if __name__ == "__main__":
         mesh_file = "default.msh"
         gmsh.finalize()
     
-    mesh = Mesh3d(mesh_file)
+    dim = 3
+    n = 5
+    mesh = Mesh3d(mesh_file, LagrangeElement(dim,n))
 
-    plot_nodal_set(mesh)
+    #plot_nodal_set_matplotlib(mesh)
+    plot_nodal_set_pyvista(mesh)
 
