@@ -1,0 +1,16 @@
+#+TITLE: Discontinuous Galerkin finite element method from scratch in python
+#+SUBTITLE: Making sense out of every step in the process
+* Introduction
+This repository contains the code developed in [[https://govango.org/blogs/discontinuous-galerkin-method-from-scratch-in-python-the-finite-element][series of posts on the website.]]
+
+* Style Guide
+** Functions
+~snake_case~ for all functions
+** Classes
+~CamelCase~ with a starting capital letter for classes and class instances
+** Internal functions in a Class
+~_underscore_prefix_snake~ for each function in a Class that is only used internally in the class.
+** Variables / Parameters
+~camel_case~ with a lowercase starting letter.
+** Constants
+~ALL_CAPS_SNAKE~ for all constants

@@ -58,7 +58,7 @@ if __name__ == "__main__":
     
     mesh = Mesh3d(mesh_file)
     cell_number = 1604   # the cell to visualize
-    adjacent_cells = mesh.cell2cells[cell_number]
+    adjacent_cells = mesh.cell_to_cells[cell_number]
     all_cells = np.insert(adjacent_cells, 0, cell_number)
     all_cells, indices = np.unique(all_cells, return_index=True)
     all_cells = all_cells[np.argsort(indices)]  # Restore original order

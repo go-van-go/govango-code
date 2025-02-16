@@ -17,7 +17,7 @@ def plot_nodal_set_pyvista(mesh):
     plotter.add_points(nodal_points, color="red", point_size=5, render_points_as_spheres=True)
 
     # Add edges
-    for edge in mesh.edgeVertices:
+    for edge in mesh.edge_vertices:
         p1 = (mesh.x_vertex[edge[0]], mesh.y_vertex[edge[0]], mesh.z_vertex[edge[0]])
         p2 = (mesh.x_vertex[edge[1]], mesh.y_vertex[edge[1]], mesh.z_vertex[edge[1]])
         line = pv.Line(p1, p2)
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         gmsh.finalize()
     
     dim = 3
-    n = 5
+    n = 3
     mesh = Mesh3d(mesh_file, LagrangeElement(dim,n))
 
     #plot_nodal_set_matplotlib(mesh)
