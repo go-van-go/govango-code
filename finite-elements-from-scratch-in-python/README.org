@@ -16,6 +16,12 @@ This repository contains the code developed in [[https://govango.org/blogs/disco
 ~ALL_CAPS_SNAKE~ for all constants
 ** Comments
 *** inline comments
+#+BEGIN_SRC python
 # start with a lowercase letter
+#+END_SRC
+
 *** function docstring comments
+#+BEGIN_SRC python
 """ uses three quotes """
+#+END_SRC
+
