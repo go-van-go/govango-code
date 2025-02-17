@@ -35,6 +35,7 @@ class Mesh3d:
         gmsh.finalize()
 
     def _extract_mesh_info(self):
+        """ Get information from Gmsh file """
         # get vertex information 
         ntags, coords, _ = gmsh.model.mesh.getNodes(4)
         self.num_vertices= len(ntags)
@@ -47,7 +48,7 @@ class Mesh3d:
         edge_vertices = gmsh.model.mesh.getElementEdgeNodes(4)
         self.edge_vertices = edge_vertices.reshape(int(len(edge_vertices)/2), 2).astype(int) - 1
 
-        # get element information
+        # get cell information
         # get all the nodes from tetrahedrons (elementType = 4)
         node_tags, _, _ = gmsh.model.mesh.getNodesByElementType(4) 
         self.num_cells = int(len(node_tags)/4) 
@@ -110,6 +111,7 @@ class Mesh3d:
         self.cell_to_faces = CtoF
 
     def _compute_jacobians(self):
+        """ calculate the jacobian of the mapping of each cell """
         # get local coordinates of the verticies in the
         # reference tetrahedron
         name, dim, order, numNodes, localCoords, _ = gmsh.model.mesh.getElementProperties(4)

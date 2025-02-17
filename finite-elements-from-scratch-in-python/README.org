@@ -11,6 +11,11 @@ This repository contains the code developed in [[https://govango.org/blogs/disco
 ** Internal functions in a Class
 ~_underscore_prefix_snake~ for each function in a Class that is only used internally in the class.
 ** Variables / Parameters
-~snake_case~ with a lowercase starting letter.
+~snake_case~ for all variables and parameters.
 ** Constants
 ~ALL_CAPS_SNAKE~ for all constants
+** Comments
+*** inline comments
+# start with a lowercase letter
+*** function docstring comments
+""" uses three quotes """

@@ -5,10 +5,10 @@ from pathlib import Path
 class LagrangeElement:
     """Lagrange finite element defined on a triangle and
       tetrahedron"""
-    # Get the base directory where the script is located, including the 'tabulated_nodes' folder
+    # get the base directory where the script is located, including the 'tabulated_nodes' folder
     base_dir = Path(__file__).parent / "tabulated_nodes"
 
-    # Load the nodes once as a class attribute
+    # load the nodes once as a class attribute
     _line_nodes = np.load(base_dir / "line_nodes.npz")
     _triangle_nodes = np.load(base_dir / "triangle_nodes.npz")
     _tetrahedron_nodes = np.load(base_dir / "tetrahedron_nodes.npz")
@@ -29,6 +29,7 @@ class LagrangeElement:
         self._get_nodes_and_vertices()
 
     def _get_nodes_and_vertices(self):
+        """ get tabulated data for nodes, and mesh data for vertices"""
         n = self.n
         if n < 30:
             if self.d == 1:
@@ -61,22 +62,25 @@ class LagrangeElement:
             raise Exception(f"No precomputed nodes found for d={d}, n={n}")
 
     def eval_basis_function_3d(self, r, s, t, i, j, k):
+        """ evaluate 3D orthonormal basis functions"""
         # transfer to the simplified coordinates for the Jacobi polynomials
         a, b, c = _rst_to_abc(r,s,t)
         # return the evaluated basis functions
         return self.orthonormal_polynomial_3d(a, b, c, i, j, k)
 
     def eval_basis_function_2d(self, r, s, i, j):
+        """ evaluate 2D orthonormal basis functions"""
         # transfer to the simplified coordinates for the Jacobi polynomials
         a, b = _rs_to_ab(r,s)
         # return the evaluated basis functions
         return self.orthonormal_polynomial_2d(a, b, i, j)
 
     def eval_basis_function_3d_gradient(self, r, s, t, i, j, k):
-       # transfer to the simplified coordinates for the Jacobi polynomials
-       a, b, c = _rst_to_abc(r,s,t)
-       # return the evaluated basis functions
-       return self.orthonormal_polynomial_3d_derivative(a, b, c, i, j, k)
+        """ evaluate gradient of 3D basis functions """
+        # transfer to the simplified coordinates for the Jacobi polynomials
+        a, b, c = _rst_to_abc(r,s,t)
+        # return the evaluated basis functions
+        return self.orthonormal_polynomial_3d_derivative(a, b, c, i, j, k)
 
        
     def _rst_to_abc(r, s, t):
@@ -117,6 +121,7 @@ class LagrangeElement:
 
 
     def orthonormal_polynomial_3d(a, b, c, i, j, k):
+        """ evaulated orthonormal basis function polynomials """
         h1 = self.normalized_jacobi(a, 0, 0, i)
         h2 = self.normalized_jacobi(b, 2*i+1, 0, j)
         h3 = self.normalized_jacobi(c, 2*(i+j)+2, 0, k)
@@ -182,15 +187,15 @@ class LagrangeElement:
         """
         Compute the normalized Jacobi polynomial of degree n at points x.
         """
-        # Compute the unnormalized Jacobi polynomial using scipy
+        # compute the unnormalized Jacobi polynomial using scipy
         P_n = eval_jacobi(n, alpha, beta, x)
         
-        # Compute the normalization constant gamma_n
+        # compute the normalization constant gamma_n
         numerator = 2 ** (alpha + beta + 1) * gamma(n + alpha + 1) * gamma(n + beta + 1)
         denominator = (2 * n + alpha + beta + 1) * gamma(n + alpha + beta + 1) * gamma(n + 1)
         gamma_n = numerator / denominator
         
-        # Normalize the polynomial
+        # normalize the polynomial
         P_n_normalized = P_n / np.sqrt(gamma_n)
         
         return P_n_normalized
@@ -204,5 +209,6 @@ class LagrangeElement:
             dP = np.sqrt(N * (N + alpha + beta + 1)) * \
                 normalized_jacobi(r, alpha + 1, beta + 1, N - 1)
         
+
 if __name__ == "__main__":
     pass
