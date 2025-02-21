@@ -1,27 +1,29 @@
+import numpy as np
+
 class ReferenceElementOperators:
 
     def __init__(self, FiniteElement):
         self.ReferenceElement =  FiniteElement
         Np = FiniteElement.nodes_per_element
         Npf = FiniteElement.nodes_per_face
-        self.vandermonde_2d = np.zeros((Npf, Npf))
-        self.vandermonde_3d = np.zeros((Np, Np))
-        self.vandermonde_3d_r_derivative = np.zeros((Np, Np))
-        self.vandermonde_3d_s_derivative = np.zeros((Np, Np))
-        self.vandermonde_3d_t_derivative = np.zeros((Np, Np))
+        r = self.ReferenceElement.r
+        s = self.ReferenceElement.s
+        t = self.ReferenceElement.t
+        self.vandermonde_2d = np.zeros((len(r), Npf))
+        self.vandermonde_3d = np.zeros((len(r), Np))
+        self.vandermonde_3d_r_derivative = np.zeros((len(r), Np))
+        self.vandermonde_3d_s_derivative = np.zeros((len(r), Np))
+        self.vandermonde_3d_t_derivative = np.zeros((len(r), Np))
         self.inverse_vandermonde_3d = np.zeros((Np,Np))
         self.mass_matrix = np.zeros((Np,Np))
         self.s_differentiation_matrix = np.zeros((Np, Np))
         self.r_differentiation_matrix = np.zeros((Np, Np))
         self.t_differentiation_matrix = np.zeros((Np, Np))
 
-        self._calculate_element_operators()
+        self._calculate_element_operators(r,s,t)
         
 
-    def _calculate_element_operators(self):
-        r = self.ReferenceElement.r
-        s = self.ReferenceElement.s
-        t = self.ReferenceElement.t
+    def _calculate_element_operators(self, r, s, t):
         self._build_vandermonde_2d(r,s)
         self._build_vandermonde_3d(r,s,t)
         self._build_inverse_vandermonde_3d()
@@ -37,7 +39,7 @@ class ReferenceElementOperators:
         # initialize the 3D Vandermonde Matrix
         V = self.vandermonde_3d
         # get orthonormal basis
-        eval_basis_function_3d = self.ReferenceElement.eval_basis_function_3d()
+        eval_basis_function_3d = self.ReferenceElement.eval_basis_function_3d
         # get polynomial order of finite element
         n = self.ReferenceElement.n 
         
@@ -53,23 +55,25 @@ class ReferenceElementOperators:
         self.vandermonde_3d = V
 
 
-    def _build_vandermonde_2d(r, s):
+    def _build_vandermonde_2d(self, r, s):
         """ create 2D vandermonde matrix to evaluate flux at faces of each element"""
         
         # initiate vandermonde matrix
         V = self.vandermonde_2d
+
+        V = np.zeros((len(r), self.ReferenceElement.nodes_per_face))
         
         # get basis function
-        eval_basis_function_2d = self.finiteElement.eval_basis_function_2d()
+        eval_basis_function_2d = self.ReferenceElement.eval_basis_function_2d
 
         # get polynomial order of finite element
         n = self.ReferenceElement.n 
 
         # build the Vandermonde matrix
         column_index = 0
-        for i in range(n+1):
+        for i in range(n + 1):
             for j in range(n - i + 1):
-                v[:, column_index] = eval_basis_function_2d(r, s, i, j)
+                V[:, column_index] = eval_basis_function_2d(r, s, i, j)
                 column_index += 1
 
         # store result
@@ -81,7 +85,7 @@ class ReferenceElementOperators:
         self.inverse_vandermonde_3d = np.linalg.inv(self.vandermonde_3d)
 
 
-    def _build_vandermonde_3d_gradient(r, s, t):
+    def _build_vandermonde_3d_gradient(self, r, s, t):
         """ Build gradient (Vr, Vs, Vt) of Vandermonde matrix"""
         # initialize Vandermonde derivative matrices
         Vr = self.vandermonde_3d_r_derivative
@@ -89,7 +93,7 @@ class ReferenceElementOperators:
         Vt = self.vandermonde_3d_t_derivative
         
         # get basis function
-        eval_basis_function_3d_gradient = self.finiteElement.eval_basis_function_3d_gradient()
+        eval_basis_function_3d_gradient = self.ReferenceElement.eval_basis_function_3d_gradient
 
         # get polynomial order of finite element
         n = self.ReferenceElement.n 
@@ -97,8 +101,8 @@ class ReferenceElementOperators:
         # build Vandermonde derivative matrices
         column_index = 0
         for i in range(n + 1):
-            for j in range(N - i + 1):
-                for k in range(N - i - j + 1):
+            for j in range(n - i + 1):
+                for k in range(n - i - j + 1):
                     Vr[:, column_index], Vs[:, column_index], Vt[:, column_index] = \
                         eval_basis_function_3d_gradient(r, s, t, i, j, k)
                     column_index += 1

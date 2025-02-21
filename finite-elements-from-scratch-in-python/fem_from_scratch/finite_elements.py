@@ -1,5 +1,7 @@
 import numpy as np
 from pathlib import Path
+from scipy.special import eval_jacobi
+from scipy.special import gamma
 
 
 class LagrangeElement:
@@ -64,26 +66,26 @@ class LagrangeElement:
     def eval_basis_function_3d(self, r, s, t, i, j, k):
         """ evaluate 3D orthonormal basis functions"""
         # transfer to the simplified coordinates for the Jacobi polynomials
-        a, b, c = _rst_to_abc(r,s,t)
+        a, b, c = self._rst_to_abc(r,s,t)
         # return the evaluated basis functions
         return self.orthonormal_polynomial_3d(a, b, c, i, j, k)
 
     def eval_basis_function_2d(self, r, s, i, j):
         """ evaluate 2D orthonormal basis functions"""
         # transfer to the simplified coordinates for the Jacobi polynomials
-        a, b = _rs_to_ab(r,s)
+        a, b = self._rs_to_ab(r,s)
         # return the evaluated basis functions
         return self.orthonormal_polynomial_2d(a, b, i, j)
 
     def eval_basis_function_3d_gradient(self, r, s, t, i, j, k):
         """ evaluate gradient of 3D basis functions """
         # transfer to the simplified coordinates for the Jacobi polynomials
-        a, b, c = _rst_to_abc(r,s,t)
+        a, b, c = self._rst_to_abc(r,s,t)
         # return the evaluated basis functions
         return self.orthonormal_polynomial_3d_derivative(a, b, c, i, j, k)
 
        
-    def _rst_to_abc(r, s, t):
+    def _rst_to_abc(self, r, s, t):
         """ transfer from (r,s,t) coordinates to (a,b,c) which are used to evaluate the
         jacobi polynomials in our orthonormal basis """
         Np = len(r)
@@ -106,7 +108,7 @@ class LagrangeElement:
         
         return a, b, c
 
-    def _rs_to_ab(r, s):
+    def _rs_to_ab(self, r, s):
         """ map from (r,s) coordinates on an element face to (a,b) which are used to evaluate the
             jacobi polynomials in our orthonormal basis """
         Np = len(r)
@@ -120,7 +122,7 @@ class LagrangeElement:
         return a, b
 
 
-    def orthonormal_polynomial_3d(a, b, c, i, j, k):
+    def orthonormal_polynomial_3d(self, a, b, c, i, j, k):
         """ evaulated orthonormal basis function polynomials """
         h1 = self.normalized_jacobi(a, 0, 0, i)
         h2 = self.normalized_jacobi(b, 2*i+1, 0, j)
@@ -130,7 +132,7 @@ class LagrangeElement:
         return P
 
 
-    def orthonormal_polynomial_2d(a, b, i, j):
+    def orthonormal_polynomial_2d(self, a, b, i, j):
         """ Evaluate 2D orthonormal polynomial on simplex at (a,b) of order (i,j) """
         h1 = self.normalized_jacobi(a, 0, 0, i)
         h2 = self.normalized_jacobi(b, 2 * i + 1, 0, j)
@@ -139,21 +141,21 @@ class LagrangeElement:
         return P
 
 
-    def orthonormal_polynomial_3d_derivative(a, b, c, i, j, k):
+    def orthonormal_polynomial_3d_derivative(self, a, b, c, i, j, k):
         """ Return the derivatives of the modal basis (id,jd,kd) on the 3D simplex at (a,b,c)"""
         
-        fa = normalized_jacobi(a, 0, 0, i)
-        dfa = normalized_jacobi_gradient(a, 0, 0, i)
-        gb = normalized_jacobi(b, 2*i+1, 0, j)
-        dgb = normalized_jacobi_gradient(b, 2*i+1, 0, j)
-        hc = normalized_jacobi(c, 2*(i+j)+2, 0, k)
-        dhc = normalized_jacobi_gradient(c, 2*(i+j)+2, 0, k)
+        fa = self.normalized_jacobi(a, 0, 0, i)
+        dfa = self.normalized_jacobi_gradient(a, 0, 0, i)
+        gb = self.normalized_jacobi(b, 2*i+1, 0, j)
+        dgb = self.normalized_jacobi_gradient(b, 2*i+1, 0, j)
+        hc = self.normalized_jacobi(c, 2*(i+j)+2, 0, k)
+        dhc = self.normalized_jacobi_gradient(c, 2*(i+j)+2, 0, k)
         
         # calculate r derivative Vr
         Vr = dfa * (gb * hc)
         if i > 0:
             Vr *= (0.5 * (1 - b)) ** (i - 1)
-        if i + jd > 0:
+        if i + j > 0:
             Vr *= (0.5 * (1 - c)) ** (i + j - 1)
         
         # calculate s derivative Vs
@@ -183,7 +185,7 @@ class LagrangeElement:
         return Vr, Vs, Vt
 
 
-    def normalized_jacobi(x, n, alpha, beta):
+    def normalized_jacobi(self, x, n, alpha, beta):
         """
         Compute the normalized Jacobi polynomial of degree n at points x.
         """
@@ -201,13 +203,15 @@ class LagrangeElement:
         return P_n_normalized
 
  
-    def normalized_jacobi_gradient(r, alpha, beta, N):
+    def normalized_jacobi_gradient(self, r, alpha, beta, N):
         dP = np.zeros(len(r))
         if N == 0:
             dP[:] = 0.0
         else:
             dP = np.sqrt(N * (N + alpha + beta + 1)) * \
-                normalized_jacobi(r, alpha + 1, beta + 1, N - 1)
+                self.normalized_jacobi(r, alpha + 1, beta + 1, N - 1)
+
+        return dP
         
 
 if __name__ == "__main__":

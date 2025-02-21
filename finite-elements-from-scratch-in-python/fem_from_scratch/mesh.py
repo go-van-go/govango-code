@@ -1,5 +1,6 @@
 import numpy as np
 import gmsh
+from reference_element_operators import ReferenceElementOperators
 
 class Mesh3d:
     def __init__(self, msh_file, FiniteElement):
@@ -8,6 +9,7 @@ class Mesh3d:
         
         self.msh_file = msh_file
         self.ReferenceElement = FiniteElement 
+        self.ReferenceElementOperators = ReferenceElementOperators(self.ReferenceElement)
         self.dim = self.ReferenceElement.d
         self.n = self.ReferenceElement.n  # polynomial order
         self.num_vertices = 0
@@ -19,18 +21,35 @@ class Mesh3d:
         self.x = []  # nodal x coordinates
         self.y = []  # nodal y coordinates
         self.z = []  # nodal z coordinates
+        self.nx = None
+        self.ny = None
+        self.nz = None
         self.edge_vertices = []
         self.cell_to_vertices = []
         self.cell_to_cells = []
         self.cell_to_faces = []
+        self.face_node_indices = None 
+        # reference to physical mapping coefficients
+        self.drdx = None
+        self.drdy = None
+        self.drdz = None
+        self.dsdx = None
+        self.dsdy = None
+        self.dsdz = None
+        self.dtdx = None
+        self.dtdy = None
+        self.dtdz = None
         self.jacobians = {}
         self.determinants = {}
         
         self._extract_mesh_info()
         self._build_connectivityMatricies()
-        self._compute_jacobians()
-        #self._compute_surfaceJacobian()
+        #self._compute_jacobians()
         self._get_mapped_nodal_cordinates()
+        self._compute_mapping_coefficients()
+        self._find_face_nodes()
+        self._compute_normals_at_face_nodes()
+        #self._compute_surfaceJacobian()
 
         gmsh.finalize()
 
@@ -145,6 +164,119 @@ class Mesh3d:
         self.y = ((1 - r - s - t) * vy[va] + r * vy[vb] + s * vy[vc] + t * vy[vd]).T
         self.z = ((1 - r - s - t) * vz[va] + r * vz[vb] + s * vz[vc] + t * vz[vd]).T
         
+
+    def _compute_mapping_coefficients(self):
+        """Compute the metric elements for the local mappings of the elements"""
+        Dr = self.ReferenceElementOperators.r_differentiation_matrix
+        Ds = self.ReferenceElementOperators.s_differentiation_matrix
+        Dt = self.ReferenceElementOperators.t_differentiation_matrix
+        x = self.x
+        y = self.y
+        z = self.z
+
+        # find jacobian of mapping
+        xr = np.dot(Dr, x)
+        xs = np.dot(Ds, x)
+        xt = np.dot(Dt, x)
+        yr = np.dot(Dr, y)
+        ys = np.dot(Ds, y)
+        yt = np.dot(Dt, y)
+        zr = np.dot(Dr, z)
+        zs = np.dot(Ds, z)
+        zt = np.dot(Dt, z)
+
+        J = xr * (ys * zt - zs * yt) - yr * (xs * zt - zs * xt) + zr * (xs * yt - ys * xt)
+        self.jacobians = J
+
+        # compute the metric constants
+        self.drdx = (ys * zt - zs * yt) / J
+        self.drdy = -(xs * zt - zs * xt) / J
+        self.drdz = (xs * yt - ys * xt) / J
+        self.dsdx = -(yr * zt - zr * yt) / J
+        self.dsdy = (xr * zt - zr * xt) / J
+        self.dsdz = -(xr * yt - yr * xt) / J
+        self.dtdx = (yr * zs - zr * ys) / J
+        self.dtdy = -(xr * zs - zr * xs) / J
+        self.dtdz = (xr * ys - yr * xs) / J
+
+
+    def _find_face_nodes(self):
+        """ return node indexes for nodes on each face of the standard tetrahedron"""
+        tolerance = self.ReferenceElement.NODE_TOLERANCE
+        r = self.ReferenceElement.r
+        s = self.ReferenceElement.s
+        t = self.ReferenceElement.t
+
+        face_0_indices = np.where(np.abs(t) < tolerance)[0]
+        face_1_indices = np.where(np.abs(s) < tolerance)[0]
+        face_2_indices = np.where(np.abs(r) < tolerance)[0]
+        face_3_indices = np.where(np.abs(r + s + t - 1) < tolerance)[0]
+        face_node_indices = np.concatenate((face_0_indices,
+                                            face_1_indices,
+                                            face_2_indices,
+                                            face_3_indices))
+
+        self.face_node_indices = face_node_indices
+
+    def _compute_normals_at_face_nodes(self):
+        """compute outward pointing normals at elements faces as well as surface Jacobians"""
+        Nfp = self.ReferenceElement.nodes_per_face
+        K = self.num_cells
+
+        # interpolate geometric factors to face nodes
+        face_drdx = self.drdx[self.face_node_indices, :]
+        face_dsdx = self.dsdx[self.face_node_indices, :]
+        face_dtdx = self.dtdx[self.face_node_indices, :]
+        face_drdy = self.drdy[self.face_node_indices, :]
+        face_dsdy = self.dsdy[self.face_node_indices, :]
+        face_dtdy = self.dtdy[self.face_node_indices, :]
+        face_drdz = self.drdz[self.face_node_indices, :]
+        face_dsdz = self.dsdz[self.face_node_indices, :]
+        face_dtdz = self.dtdz[self.face_node_indices, :]
+
+        # build normal vectors
+        nx = np.zeros((4 * Nfp, K))
+        ny = np.zeros((4 * Nfp, K))
+        nz = np.zeros((4 * Nfp, K))
+
+        # create vectors of indices of each face
+        face_0_indices = np.arange(0, Nfp)
+        face_1_indices = np.arange(Nfp, 2 * Nfp)
+        face_2_indices = np.arange(2 * Nfp, 3 * Nfp)
+        face_3_indices = np.arange(3 * Nfp, 4 * Nfp)
+
+        # face 0: t = 0 → Normal in -t direction
+        nx[face_0_indices, :] = -face_dtdx[face_0_indices, :]
+        ny[face_0_indices, :] = -face_dtdy[face_0_indices, :]
+        nz[face_0_indices, :] = -face_dtdz[face_0_indices, :]
+
+        # face 1: s = 0 → Normal in -s direction
+        nx[face_1_indices, :] = -face_dsdx[face_1_indices, :]
+        ny[face_1_indices, :] = -face_dsdy[face_1_indices, :]
+        nz[face_1_indices, :] = -face_dsdz[face_1_indices, :]
+
+        # face 2: r = 0 → Normal in -r direction
+        nx[face_2_indices, :] = -face_drdx[face_2_indices, :]
+        ny[face_2_indices, :] = -face_drdy[face_2_indices, :]
+        nz[face_2_indices, :] = -face_drdz[face_2_indices, :]
+
+        # Face 3: r + s + t = 1 → Normal is the gradient of (r + s + t)
+        nx[face_3_indices, :] = face_drdx[face_3_indices, :] + face_dsdx[face_3_indices, :] + face_dtdx[face_3_indices, :]
+        ny[face_3_indices, :] = face_drdy[face_3_indices, :] + face_dsdy[face_3_indices, :] + face_dtdy[face_3_indices, :]
+        nz[face_3_indices, :] = face_drdz[face_3_indices, :] + face_dsdz[face_3_indices, :] + face_dtdz[face_3_indices, :]
+
+        # find surface Jacobian
+        sJ = np.sqrt(nx * nx + ny * ny + nz * nz)
+        nx /= sJ
+        ny /= sJ
+        nz /= sJ
+        sJ *= self.jacobians[self.face_node_indices, :]
+
+        self.nx = nx
+        self.ny = ny
+        self.nz = nz
+        self.surface_jacobians = sJ
+
 
 if __name__ == "__main__":
     import sys

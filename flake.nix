@@ -24,6 +24,7 @@
               #  # packages for code
                 python-pkgs.gmsh
 		python-pkgs.pyvista
+		python-pkgs.pytest
 		python-pkgs.numpy
 		python-pkgs.scipy
                 python-pkgs.matplotlib
