@@ -1,6 +1,7 @@
 import numpy as np
 import gmsh
 from reference_element_operators import ReferenceElementOperators
+from visualizing import *
 
 class Mesh3d:
     def __init__(self, msh_file, FiniteElement):
@@ -285,15 +286,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         mesh_file = sys.argv[1]
     else:
-        gmsh.initialize()
-        gmsh.model.add("simple")
-        gmsh.model.occ.addBox(0, 0, 0, 1, 1, 1)
-        gmsh.option.setNumber("Mesh.MeshSizeMin", 2.0)
-        gmsh.model.occ.synchronize()
-        gmsh.model.mesh.generate(3)
-        gmsh.write("default.msh")
-        mesh_file = "default.msh"
-        gmsh.finalize()
+        mesh_file = "../inputs/meshes/default.msh"
     
     dim = 3
     n = 3

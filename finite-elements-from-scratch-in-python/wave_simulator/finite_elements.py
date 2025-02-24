@@ -1,19 +1,21 @@
+from pathlib import Path  
 import numpy as np
-from pathlib import Path
 from scipy.special import eval_jacobi
 from scipy.special import gamma
+from math import lgamma
+from visualizing import *
 
 
 class LagrangeElement:
     """Lagrange finite element defined on a triangle and
       tetrahedron"""
     # get the base directory where the script is located, including the 'tabulated_nodes' folder
-    base_dir = Path(__file__).parent / "tabulated_nodes"
+    nodes_path = Path(__file__).parent / "../inputs/tabulated_nodes"
 
     # load the nodes once as a class attribute
-    _line_nodes = np.load(base_dir / "line_nodes.npz")
-    _triangle_nodes = np.load(base_dir / "triangle_nodes.npz")
-    _tetrahedron_nodes = np.load(base_dir / "tetrahedron_nodes.npz")
+    _line_nodes = np.load(nodes_path / "line_nodes.npz")
+    _triangle_nodes = np.load(nodes_path / "triangle_nodes.npz")
+    _tetrahedron_nodes = np.load(nodes_path / "tetrahedron_nodes.npz")
 
     def __init__(self, d, n):
         self.d = d  # dimension
@@ -66,7 +68,8 @@ class LagrangeElement:
     def eval_basis_function_3d(self, r, s, t, i, j, k):
         """ evaluate 3D orthonormal basis functions"""
         # transfer to the simplified coordinates for the Jacobi polynomials
-        a, b, c = self._rst_to_abc(r,s,t)
+        #a, b, c = self._rst_to_abc(r,s,t)
+        a, b, c = r, s, t
         # return the evaluated basis functions
         return self.orthonormal_polynomial_3d(a, b, c, i, j, k)
 
@@ -185,24 +188,46 @@ class LagrangeElement:
         return Vr, Vs, Vt
 
 
-    def normalized_jacobi(self, x, n, alpha, beta):
+    def normalized_jacobi(self, x, alpha, beta, n):
         """
         Compute the normalized Jacobi polynomial of degree n at points x.
         """
         # compute the unnormalized Jacobi polynomial using scipy
         P_n = eval_jacobi(n, alpha, beta, x)
+        jacobi_norm = self._get_jacobi_norm(n, alpha, beta)
         
         # compute the normalization constant gamma_n
-        numerator = 2 ** (alpha + beta + 1) * gamma(n + alpha + 1) * gamma(n + beta + 1)
-        denominator = (2 * n + alpha + beta + 1) * gamma(n + alpha + beta + 1) * gamma(n + 1)
-        gamma_n = numerator / denominator
-        
+        #numerator = 2 ** (alpha + beta + 1) * gamma(n + alpha + 1) * gamma(n + beta + 1)
+        #denominator = (2 * n + alpha + beta + 1) * gamma(n + alpha + beta + 1) * gamma(n + 1)
+        #gamma_n = numerator / denominator
+        #
         # normalize the polynomial
-        P_n_normalized = P_n / np.sqrt(gamma_n)
+        P_n_normalized = P_n / jacobi_norm
         
         return P_n_normalized
 
+
+    def _get_jacobi_norm(self, n, a=0., b=0.):
+        '''The square of the weighted `L_2` norm of a Jacobi polynomial.
+
+        Args:
+        n (int): The degree of the polynomial.
+        x (ndarray): Points at which to evaluate the polynomial.
+        a (float, optional): Left exponent of weight function.
+        b (float, optional): Right exponent of weight function.
+
+        Returns:
+        float: `\\int_{-1}^1 (1+x)^a (1-x)^b P^{(a,b)}_n(x)^2\\ dx`.
+        '''
+        if n == 0:
+            return 2.**(a+b+1) * np.exp(lgamma(a + 1) + lgamma(b + 1) -
+                                        lgamma(a + b + 2))
+        else:
+            return (2.**(a+b+1) / (2*n + a + b + 1) *
+                    np.exp(lgamma(n + a + 1) + lgamma(n + b + 1) -
+                           lgamma(n + a + b + 1) - lgamma(n + 1)))
  
+
     def normalized_jacobi_gradient(self, r, alpha, beta, N):
         dP = np.zeros(len(r))
         if N == 0:

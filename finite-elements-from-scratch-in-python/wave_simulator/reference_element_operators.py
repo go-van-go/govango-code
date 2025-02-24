@@ -1,8 +1,10 @@
 import numpy as np
+from visualizing import *
+from finite_elements import LagrangeElement
 
 class ReferenceElementOperators:
 
-    def __init__(self, FiniteElement):
+    def __init__(self, FiniteElement: LagrangeElement):
         self.ReferenceElement =  FiniteElement
         Np = FiniteElement.nodes_per_element
         Npf = FiniteElement.nodes_per_face
@@ -52,6 +54,7 @@ class ReferenceElementOperators:
                     column_index += 1
 
         # store result
+        breakpoint()
         self.vandermonde_3d = V
 
 
