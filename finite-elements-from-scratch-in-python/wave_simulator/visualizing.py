@@ -35,7 +35,7 @@ def visualize_array(array, cmap="viridis", colorbar=True):
 
 
 
-def plot_nodal_set_pyvista(mesh):
+def plot_norms(mesh):
     # Create a PyVista plotter
     plotter = pv.Plotter()
 
@@ -170,3 +170,10 @@ def plot_reference_tetrahedron():
     ax.set_zlabel("Z")
     
     plt.show()
+
+if __name__ == "__main__":
+    from simulator import Simulator
+    from mesh import Mesh3d
+    from finite_elements import LagrangeElement
+    from reference_element_operators import ReferenceElementOperators
+    breakpoint()

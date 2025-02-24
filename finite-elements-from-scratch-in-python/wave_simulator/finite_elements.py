@@ -58,18 +58,20 @@ class LagrangeElement:
                 self.r =  self.nodes[:,0] # x coordinate of each node 
                 self.s =  self.nodes[:,1]# y coordinate of each node
                 self.t =  self.nodes[:,2] # z coordinate of each node
-                self.vertices = np.array([[0, 0, 0],
-                                          [1, 0, 0],
-                                          [0, 1, 0],
-                                          [0, 0, 1]])
+                self.vertices = np.array([
+                    [-1, -1, -1],
+                    [ 1, -1, -1],
+                    [-1,  1, -1],
+                    [-1, -1,  1]
+                ])
         else:
             raise Exception(f"No precomputed nodes found for d={d}, n={n}")
 
     def eval_basis_function_3d(self, r, s, t, i, j, k):
         """ evaluate 3D orthonormal basis functions"""
         # transfer to the simplified coordinates for the Jacobi polynomials
-        #a, b, c = self._rst_to_abc(r,s,t)
-        a, b, c = r, s, t
+        a, b, c = self._rst_to_abc(r,s,t)
+        #a, b, c = r, s, t
         # return the evaluated basis functions
         return self.orthonormal_polynomial_3d(a, b, c, i, j, k)
 
@@ -194,15 +196,16 @@ class LagrangeElement:
         """
         # compute the unnormalized Jacobi polynomial using scipy
         P_n = eval_jacobi(n, alpha, beta, x)
-        jacobi_norm = self._get_jacobi_norm(n, alpha, beta)
+        #jacobi_norm = self._get_jacobi_norm(n, alpha, beta)
         
         # compute the normalization constant gamma_n
-        #numerator = 2 ** (alpha + beta + 1) * gamma(n + alpha + 1) * gamma(n + beta + 1)
-        #denominator = (2 * n + alpha + beta + 1) * gamma(n + alpha + beta + 1) * gamma(n + 1)
-        #gamma_n = numerator / denominator
-        #
+        numerator = 2 ** (alpha + beta + 1) * gamma(n + alpha + 1) * gamma(n + beta + 1)
+        denominator = (2 * n + alpha + beta + 1) * gamma(n + alpha + beta + 1) * gamma(n + 1)
+        gamma_n = numerator / denominator
+        
         # normalize the polynomial
-        P_n_normalized = P_n / jacobi_norm
+        #P_n_normalized = P_n / jacobi_norm
+        P_n_normalized = P_n / np.sqrt(gamma_n)
         
         return P_n_normalized
 

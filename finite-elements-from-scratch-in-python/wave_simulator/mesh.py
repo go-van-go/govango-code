@@ -41,16 +41,15 @@ class Mesh3d:
         self.dtdy = None
         self.dtdz = None
         self.jacobians = {}
-        self.determinants = {}
+        #self.determinants = {}
         
         self._extract_mesh_info()
         self._build_connectivityMatricies()
-        #self._compute_jacobians()
+        #self._compute_gmsh_jacobians()
         self._get_mapped_nodal_cordinates()
         self._compute_mapping_coefficients()
         self._find_face_nodes()
         self._compute_normals_at_face_nodes()
-        #self._compute_surfaceJacobian()
 
         gmsh.finalize()
 
@@ -86,6 +85,7 @@ class Mesh3d:
                             CtoV[:, [0, 1, 3]],
                             CtoV[:, [1, 2, 3]],
                             CtoV[:, [0, 2, 3]]))
+
         # sort each row from low to high for hash algorithm
         face_vertices = np.sort(face_vertices, axis=1)
          
@@ -130,14 +130,14 @@ class Mesh3d:
         self.cell_to_cells = CtoC
         self.cell_to_faces = CtoF
 
-    def _compute_jacobians(self):
+    def _compute_gmsh_jacobians(self):
         """ calculate the jacobian of the mapping of each cell """
         # get local coordinates of the verticies in the
         # reference tetrahedron
         name, dim, order, numNodes, localCoords, _ = gmsh.model.mesh.getElementProperties(4)
         jacobians, determinants, _ = gmsh.model.mesh.getJacobians(4, localCoords)
-        self.jacobians = jacobians.reshape(-1, 3, 3)
-        self.determinants = determinants
+        self.gmsh_jacobians = jacobians.reshape(-1, 3, 3)
+        self.gmsh_determinants = determinants
 
         
     def _get_mapped_nodal_cordinates(self):
@@ -161,11 +161,11 @@ class Mesh3d:
         vz = vz.reshape(-1, 1)
         
         # map r, s, t from standard tetrahedron to x, y, z coordinates for each element
-        self.x = ((1 - r - s - t) * vx[va] + r * vx[vb] + s * vx[vc] + t * vx[vd]).T
-        self.y = ((1 - r - s - t) * vy[va] + r * vy[vb] + s * vy[vc] + t * vy[vd]).T
-        self.z = ((1 - r - s - t) * vz[va] + r * vz[vb] + s * vz[vc] + t * vz[vd]).T
-        
+        self.x = (0.5 * (-(1 + r + s + t) * vx[va] + (1 + r) * vx[vb] + (1 + s) * vx[vc] + (1 + t) * vx[vd])).T
+        self.y = (0.5 * (-(1 + r + s + t) * vy[va] + (1 + r) * vy[vb] + (1 + s) * vy[vc] + (1 + t) * vy[vd])).T
+        self.z = (0.5 * (-(1 + r + s + t) * vz[va] + (1 + r) * vz[vb] + (1 + s) * vz[vc] + (1 + t) * vz[vd])).T
 
+       
     def _compute_mapping_coefficients(self):
         """Compute the metric elements for the local mappings of the elements"""
         Dr = self.ReferenceElementOperators.r_differentiation_matrix
@@ -208,10 +208,11 @@ class Mesh3d:
         s = self.ReferenceElement.s
         t = self.ReferenceElement.t
 
-        face_0_indices = np.where(np.abs(t) < tolerance)[0]
-        face_1_indices = np.where(np.abs(s) < tolerance)[0]
-        face_2_indices = np.where(np.abs(r) < tolerance)[0]
-        face_3_indices = np.where(np.abs(r + s + t - 1) < tolerance)[0]
+        face_0_indices = np.where(np.abs(1 + t) < tolerance)[0]
+        face_1_indices = np.where(np.abs(1 + s) < tolerance)[0]
+        face_2_indices = np.where(np.abs(1 + r + s + t) < tolerance)[0]
+        face_3_indices = np.where(np.abs(1 + r) < tolerance)[0]
+
         face_node_indices = np.concatenate((face_0_indices,
                                             face_1_indices,
                                             face_2_indices,
@@ -246,25 +247,25 @@ class Mesh3d:
         face_2_indices = np.arange(2 * Nfp, 3 * Nfp)
         face_3_indices = np.arange(3 * Nfp, 4 * Nfp)
 
-        # face 0: t = 0 → Normal in -t direction
+        # face 0: t = -1 → Normal in -t direction
         nx[face_0_indices, :] = -face_dtdx[face_0_indices, :]
         ny[face_0_indices, :] = -face_dtdy[face_0_indices, :]
         nz[face_0_indices, :] = -face_dtdz[face_0_indices, :]
 
-        # face 1: s = 0 → Normal in -s direction
+        # face 1: s = -1 → Normal in -s direction
         nx[face_1_indices, :] = -face_dsdx[face_1_indices, :]
         ny[face_1_indices, :] = -face_dsdy[face_1_indices, :]
         nz[face_1_indices, :] = -face_dsdz[face_1_indices, :]
 
-        # face 2: r = 0 → Normal in -r direction
-        nx[face_2_indices, :] = -face_drdx[face_2_indices, :]
-        ny[face_2_indices, :] = -face_drdy[face_2_indices, :]
-        nz[face_2_indices, :] = -face_drdz[face_2_indices, :]
+        # face 2: r + s + t = -1 → Normal is the gradient of (r + s + t)
+        nx[face_2_indices, :] = face_drdx[face_2_indices, :] + face_dsdx[face_2_indices, :] + face_dtdx[face_2_indices, :]
+        ny[face_2_indices, :] = face_drdy[face_2_indices, :] + face_dsdy[face_2_indices, :] + face_dtdy[face_2_indices, :]
+        nz[face_2_indices, :] = face_drdz[face_2_indices, :] + face_dsdz[face_2_indices, :] + face_dtdz[face_2_indices, :]
 
-        # Face 3: r + s + t = 1 → Normal is the gradient of (r + s + t)
-        nx[face_3_indices, :] = face_drdx[face_3_indices, :] + face_dsdx[face_3_indices, :] + face_dtdx[face_3_indices, :]
-        ny[face_3_indices, :] = face_drdy[face_3_indices, :] + face_dsdy[face_3_indices, :] + face_dtdy[face_3_indices, :]
-        nz[face_3_indices, :] = face_drdz[face_3_indices, :] + face_dsdz[face_3_indices, :] + face_dtdz[face_3_indices, :]
+        # face 3: r = -1 → Normal in -r direction
+        nx[face_3_indices, :] = -face_drdx[face_3_indices, :]
+        ny[face_3_indices, :] = -face_drdy[face_3_indices, :]
+        nz[face_3_indices, :] = -face_drdz[face_3_indices, :]
 
         # find surface Jacobian
         sJ = np.sqrt(nx * nx + ny * ny + nz * nz)
@@ -286,8 +287,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         mesh_file = sys.argv[1]
     else:
-        mesh_file = "../inputs/meshes/default.msh"
+        mesh_file = "../inputs/meshes/simple.msh"
     
     dim = 3
     n = 3
     mesh = Mesh3d(mesh_file, LagrangeElement(dim,n))
+    breakpoint()

@@ -1,8 +1,8 @@
 import pytest
 import numpy as np
-from wave_simulator.mesh import Mesh3d
-from wave_simulator.finite_elements import LagrangeElement
-from wave_simulator.reference_element_operators import ReferenceElementOperators
+from mesh import Mesh3d
+from finite_elements import LagrangeElement
+from reference_element_operators import ReferenceElementOperators
 from scipy.special import roots_jacobi
 
 @pytest.fixture(scope="module")

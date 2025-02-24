@@ -54,7 +54,6 @@ class ReferenceElementOperators:
                     column_index += 1
 
         # store result
-        breakpoint()
         self.vandermonde_3d = V
 
 
