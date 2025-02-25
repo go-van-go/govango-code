@@ -5,10 +5,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
-
-def plot_mesh_full(element_indicies, normal_vector_indices):
-    pass
-
+from finite_elements import LagrangeElement
 
 def visualize_array(array, cmap="viridis", colorbar=True):
     """
@@ -33,143 +30,169 @@ def visualize_array(array, cmap="viridis", colorbar=True):
     plt.ylabel("Rows")
     plt.show()
 
-
-
-def plot_norms(mesh):
-    # Create a PyVista plotter
-    plotter = pv.Plotter()
-
-    # Extract nodal points
-    nodal_points = np.column_stack((mesh.x.flatten(), mesh.y.flatten(), mesh.z.flatten()))
-    
-    # Add the nodal points
-    plotter.add_points(nodal_points, color="blue", point_size=10, render_points_as_spheres=True)
-
-    # Add edges
-    for edge in mesh.edge_vertices:
-        p1 = (mesh.x_vertex[edge[0]], mesh.y_vertex[edge[0]], mesh.z_vertex[edge[0]])
-        p2 = (mesh.x_vertex[edge[1]], mesh.y_vertex[edge[1]], mesh.z_vertex[edge[1]])
-        line = pv.Line(p1, p2)
-        plotter.add_mesh(line, color="black", line_width=2)
-
-    # Extract face node coordinates using face_node_indices
-    x_origin = mesh.x[:,0][mesh.face_node_indices].flatten()
-    y_origin = mesh.y[:,0][mesh.face_node_indices].flatten()
-    z_origin = mesh.z[:,0][mesh.face_node_indices].flatten()
-    
-    # Stack into origin points
-    normal_vector_origin = np.column_stack((x_origin, y_origin, z_origin))
-    
-    # Extract only the normal vectors for element 1 (second column, index 1)
-    nx = mesh.nx[:, 0]
-    ny = mesh.ny[:, 0]
-    nz = mesh.nz[:, 0]
-    
-    # Stack into normal vectors
-    normal_vector_direction = np.column_stack((nx, ny, nz))
-    breakpoint()
-    
-    # Loop through and add only the vectors from element 1
-    plotter.add_arrows(normal_vector_origin, normal_vector_direction, mag=0.3, color='red')
-    
-    plotter.show()
- 
-
-def plot_mesh(mesh, highlight_cells=None):
-    # Create PyVista UnstructuredGrid
-    cells = np.hstack([np.full((mesh.num_cells, 1), 4), mesh.cell2vertices]).flatten()
-    cell_types = np.full(mesh.num_cells, pv.CellType.TETRA)  # Tetrahedral elements
-    
-    grid = pv.UnstructuredGrid(cells, cell_types, mesh.vertexCoordinates)
-    plotter = pv.Plotter()
-    
-    # Plot mesh as wireframe
-    plotter.add_mesh(grid, style='wireframe', color='black')
-    
-    # Highlight specific elements if provided
-    if highlight_cells is not None:
-        # First element in red
-        first_cell = highlight_cells[0]
-        highlight_grid = pv.UnstructuredGrid(
-            np.hstack([[4], mesh.cell2vertices[first_cell]]).flatten(),
-            [pv.CellType.TETRA], mesh.vertexCoordinates
-        )
-        plotter.add_mesh(highlight_grid, color='#ebcb8b', opacity=1.0)
-        
-        # Remaining elements in blue
-        for cell in highlight_cells[1:]:
-            highlight_grid = pv.UnstructuredGrid(
-                np.hstack([[4], mesh.cell2vertices[cell]]).flatten(),
-                [pv.CellType.TETRA], mesh.vertexCoordinates
-            )
-            plotter.add_mesh(highlight_grid, color='5e81ac', opacity=0.5)
-    plotter.export_gltf("adjacent-cells.gltf")  # Supports .glb
-    
-    plotter.show()
-
-def plot_lagrange_nodes():
+       
+def plot_reference_nodes_3d():
     element = LagrangeElement(d=3, n=20)
     nodes = element.nodes  # Retrieve precomputed nodes
     
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    # Create a PyVista point cloud
+    point_cloud = pv.PolyData(nodes)
     
-    ax.scatter(nodes[:, 0], nodes[:, 1], nodes[:, 2], c='r', marker='o', label='Lagrange Nodes')
+    # Create a plotter
+    plotter = pv.Plotter()
+    plotter.add_mesh(point_cloud, color='red', point_size=10, render_points_as_spheres=True)
     
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_zlabel("Z")
-    ax.set_title("Lagrange Element Nodes (d=3, n=20)")
+    # Add axes labels
+    plotter.show_grid()
     
-    ax.legend()
-    plt.show()
+    plotter.show(title="Lagrange Element Nodes (d=3, n=20)")
 
 
-def plot_reference_tetrahedron():
-    # Define vertices of the tetrahedron
-    vertices = np.array([
-        [0, 0, 0],
-        [1, 0, 0],
-        [0, 1, 0],
-        [0, 0, 1]
-    ])
-    
-    # Define edges as pairs of vertices
-    edges = [
-        (vertices[0], vertices[1]),
-        (vertices[0], vertices[2]),
-        (vertices[0], vertices[3]),
-        (vertices[1], vertices[2]),
-        (vertices[1], vertices[3]),
-        (vertices[2], vertices[3])
-    ]
-    
-    # Create a figure with a 3D axis
-    fig = plt.figure(figsize=(20,20))
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_facecolor("#eceff4")  # Set background color
-    
-    # Convert edges to a Line3DCollection and add to plot
-    edge_collection = Line3DCollection(edges, colors='k', linewidths=2)
-    ax.add_collection3d(edge_collection)
-    
-    # Plot vertices
-    ax.scatter(vertices[:, 0], vertices[:, 1], vertices[:, 2], color="#5e81ac", s=1000)
-    
-    # Set axis limits
-    ax.set_xlim([-.2, 1.2])
-    ax.set_ylim([-.2, 1.2])
-    ax.set_zlim([-.2, 1.2])
-    
-    # Show axes but remove ticks
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_zticks([])
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_zlabel("Z")
-    
-    plt.show()
+def plot_nodes(plotter, mesh, nodes):
+    """Plot nodes on the mesh."""
+    if nodes is not None:
+        # Extract x, y, z coordinates for the nodes in the specified elements
+        x_coords = mesh.x[:, nodes].flatten()
+        y_coords = mesh.y[:, nodes].flatten()
+        z_coords = mesh.z[:, nodes].flatten()
+        
+        # Stack into nodal points
+        points_to_plot = np.column_stack((x_coords, y_coords, z_coords))
+        
+        # Add the points to the plot
+        plotter.add_points(points_to_plot, color="blue", point_size=10, render_points_as_spheres=True)
+
+
+def plot_boundary_nodes(plotter, mesh):
+    """Plot boundary nodes on the mesh."""
+    if hasattr(mesh, 'boundary_node_ids') and mesh.boundary_node_ids is not None:
+        # Extract x, y, z coordinates for the boundary nodes
+        x_coords = mesh.x.flatten(order="F")[mesh.boundary_node_ids]
+        y_coords = mesh.y.flatten(order="F")[mesh.boundary_node_ids]
+        z_coords = mesh.z.flatten(order="F")[mesh.boundary_node_ids]
+        
+        # Stack into boundary nodal points
+        boundary_points_to_plot = np.column_stack((x_coords, y_coords, z_coords))
+        
+        # Add the boundary points to the plot
+        plotter.add_points(boundary_points_to_plot, color="green", point_size=10, render_points_as_spheres=True)
+
+
+def plot_boundary_elements(plotter, mesh):
+    """Plot elements that lie on the boundary of the mesh."""
+    if hasattr(mesh, 'cell_to_faces') and mesh.cell_to_faces is not None:
+        # Get Jacobian values for all cells (using first element of each column)
+        jacobian_values = mesh.jacobians[0, :]
+        
+        # Normalize Jacobian values to create a color map
+        cmap = plt.cm.viridis  # You can choose any colormap
+        norm = plt.Normalize(vmin=np.min(jacobian_values), vmax=np.max(jacobian_values))
+        
+        # Iterate over each cell and its faces
+        for cell_idx, faces in enumerate(mesh.cell_to_cells):
+            # Check if any face in the cell lies on the boundary
+            if cell_idx in faces:
+                # Get the Jacobian value for the current cell
+                jacobian_value = jacobian_values[cell_idx]
+                
+                # Normalize and map the Jacobian value to color
+                color = cmap(norm(jacobian_value))[:3]  # Use only the RGB channels
+                
+                # Create the mesh for the highlighted cell
+                boundary_element_grid = pv.UnstructuredGrid(
+                    np.hstack([[4], mesh.cell_to_vertices[cell_idx]]).flatten(),
+                    [pv.CellType.TETRA], mesh.vertex_coordinates
+                )
+                
+                # Apply color based on the Jacobian value
+                plotter.add_mesh(boundary_element_grid, color=color, opacity=0.1)
+
+
+def plot_elements(plotter, mesh, elements):
+    """Highlight specific elements on the mesh."""
+    if elements is not None:
+        # Get Jacobian values for all cells (using first element of each column)
+        jacobian_values = mesh.jacobians[0, :]
+        
+        # Normalize Jacobian values to create a color map
+        cmap = plt.cm.viridis  # You can choose any colormap
+        norm = plt.Normalize(vmin=np.min(jacobian_values), vmax=np.max(jacobian_values))
+        
+        for cell in elements:
+            # Get the Jacobian value for the current cell
+            jacobian_value = jacobian_values[cell]
+            
+            # Normalize and map the Jacobian value to color
+            color = cmap(norm(jacobian_value))[:3]  # Use only the RGB channels
+            
+            # Create the mesh for the highlighted cell
+            highlight_grid = pv.UnstructuredGrid(
+                np.hstack([[4], mesh.cell_to_vertices[cell]]).flatten(),
+                [pv.CellType.TETRA], mesh.vertex_coordinates
+            )
+            
+            # Apply color based on the Jacobian value
+            plotter.add_mesh(highlight_grid, color=color, opacity=0.5)
+
+
+def plot_normals(plotter, mesh, norms):
+    """Plot normal vectors for specified elements."""
+    if norms is not None:
+        # Extract face node coordinates using face_node_indices
+        face_node_indices = mesh.ReferenceElement.face_node_indices
+        
+        for elem in norms:
+            x_origin = mesh.x[:, elem][face_node_indices].flatten()
+            y_origin = mesh.y[:, elem][face_node_indices].flatten()
+            z_origin = mesh.z[:, elem][face_node_indices].flatten()
+            
+            # Stack into origin points
+            normal_vector_origin = np.column_stack((x_origin, y_origin, z_origin))
+            
+            # Extract normal vectors for the given element
+            nx = mesh.nx[:, elem]
+            ny = mesh.ny[:, elem]
+            nz = mesh.nz[:, elem]
+            
+            # Stack into normal vectors
+            normal_vector_direction = np.column_stack((nx, ny, nz))
+            
+            # Add normal vectors as arrows
+            plotter.add_arrows(normal_vector_origin, normal_vector_direction, mag=0.1, color='red')
+
+def visualize_mesh(mesh, elements, norms, nodes, boundary_nodes=False, boundary_elements=False):
+    """Visualize the mesh with nodes, elements, and normals."""
+    # Create a PyVista plotter
+    plotter = pv.Plotter()
+
+    # Create PyVista UnstructuredGrid
+    cells = np.hstack([np.full((mesh.num_cells, 1), 4), mesh.cell_to_vertices]).flatten()
+    cell_types = np.full(mesh.num_cells, pv.CellType.TETRA)  # Tetrahedral elements
+    grid = pv.UnstructuredGrid(cells, cell_types, mesh.vertex_coordinates)
+
+    # Add mesh
+    plotter.add_mesh(grid, style='wireframe', color='black')
+
+    # Plot nodes
+    plot_nodes(plotter, mesh, nodes)
+
+    # Plot boundary nodes if requested
+    if boundary_nodes:
+        plot_boundary_nodes(plotter, mesh)
+
+    # Plot boundary faces if requested
+    if boundary_elements:
+        plot_boundary_elements(plotter, mesh)
+
+    # Plot elements
+    plot_elements(plotter, mesh, elements)
+
+    # Plot normals
+    plot_normals(plotter, mesh, norms)
+
+    # Export and show the plot
+    plotter.export_gltf("highlighted_cells.gltf")  # Supports .glb
+    plotter.show()
 
 if __name__ == "__main__":
     from simulator import Simulator

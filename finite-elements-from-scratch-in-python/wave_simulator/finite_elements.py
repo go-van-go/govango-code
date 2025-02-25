@@ -28,9 +28,11 @@ class LagrangeElement:
         self.s = np.array([])
         self.t = np.array([])
         self.vertices = np.array([])
+        self.face_node_indices = np.array([]) 
         self.NODE_TOLERANCE = 1e-7  # tolerance to find face nodes
 
         self._get_nodes_and_vertices()
+        self._find_face_nodes()
 
     def _get_nodes_and_vertices(self):
         """ get tabulated data for nodes, and mesh data for vertices"""
@@ -66,6 +68,26 @@ class LagrangeElement:
                 ])
         else:
             raise Exception(f"No precomputed nodes found for d={d}, n={n}")
+
+    def _find_face_nodes(self):
+        """ return node indexes for nodes on each face of the standard tetrahedron"""
+        tolerance = self.NODE_TOLERANCE
+        r = self.r
+        s = self.s
+        t = self.t
+
+        face_0_indices = np.where(np.abs(1 + t) < tolerance)[0]
+        face_1_indices = np.where(np.abs(1 + s) < tolerance)[0]
+        face_2_indices = np.where(np.abs(1 + r + s + t) < tolerance)[0]
+        face_3_indices = np.where(np.abs(1 + r) < tolerance)[0]
+
+        face_node_indices = np.concatenate((face_0_indices,
+                                            face_1_indices,
+                                            face_2_indices,
+                                            face_3_indices))
+
+        self.face_node_indices = face_node_indices
+
 
     def eval_basis_function_3d(self, r, s, t, i, j, k):
         """ evaluate 3D orthonormal basis functions"""
@@ -210,34 +232,14 @@ class LagrangeElement:
         return P_n_normalized
 
 
-    def _get_jacobi_norm(self, n, a=0., b=0.):
-        '''The square of the weighted `L_2` norm of a Jacobi polynomial.
-
-        Args:
-        n (int): The degree of the polynomial.
-        x (ndarray): Points at which to evaluate the polynomial.
-        a (float, optional): Left exponent of weight function.
-        b (float, optional): Right exponent of weight function.
-
-        Returns:
-        float: `\\int_{-1}^1 (1+x)^a (1-x)^b P^{(a,b)}_n(x)^2\\ dx`.
-        '''
-        if n == 0:
-            return 2.**(a+b+1) * np.exp(lgamma(a + 1) + lgamma(b + 1) -
-                                        lgamma(a + b + 2))
-        else:
-            return (2.**(a+b+1) / (2*n + a + b + 1) *
-                    np.exp(lgamma(n + a + 1) + lgamma(n + b + 1) -
-                           lgamma(n + a + b + 1) - lgamma(n + 1)))
- 
-
-    def normalized_jacobi_gradient(self, r, alpha, beta, N):
+    def normalized_jacobi_gradient(self, r, alpha, beta, n):
         dP = np.zeros(len(r))
-        if N == 0:
+
+        if n == 0:
             dP[:] = 0.0
         else:
-            dP = np.sqrt(N * (N + alpha + beta + 1)) * \
-                self.normalized_jacobi(r, alpha + 1, beta + 1, N - 1)
+            dP = np.sqrt(n * (n + alpha + beta + 1)) * \
+                self.normalized_jacobi(r, alpha + 1, beta + 1, n - 1)
 
         return dP
         

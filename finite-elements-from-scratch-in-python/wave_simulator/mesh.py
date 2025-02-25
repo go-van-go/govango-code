@@ -1,7 +1,6 @@
 import numpy as np
 import gmsh
 from reference_element_operators import ReferenceElementOperators
-from visualizing import *
 
 class Mesh3d:
     def __init__(self, msh_file, FiniteElement):
@@ -29,7 +28,6 @@ class Mesh3d:
         self.cell_to_vertices = []
         self.cell_to_cells = []
         self.cell_to_faces = []
-        self.face_node_indices = None 
         # reference to physical mapping coefficients
         self.drdx = None
         self.drdy = None
@@ -48,8 +46,9 @@ class Mesh3d:
         #self._compute_gmsh_jacobians()
         self._get_mapped_nodal_cordinates()
         self._compute_mapping_coefficients()
-        self._find_face_nodes()
         self._compute_normals_at_face_nodes()
+        self._compute_face_node_mappings()
+        self._find_boundary_nodes()
 
         gmsh.finalize()
 
@@ -200,41 +199,22 @@ class Mesh3d:
         self.dtdy = -(xr * zs - zr * xs) / J
         self.dtdz = (xr * ys - yr * xs) / J
 
-
-    def _find_face_nodes(self):
-        """ return node indexes for nodes on each face of the standard tetrahedron"""
-        tolerance = self.ReferenceElement.NODE_TOLERANCE
-        r = self.ReferenceElement.r
-        s = self.ReferenceElement.s
-        t = self.ReferenceElement.t
-
-        face_0_indices = np.where(np.abs(1 + t) < tolerance)[0]
-        face_1_indices = np.where(np.abs(1 + s) < tolerance)[0]
-        face_2_indices = np.where(np.abs(1 + r + s + t) < tolerance)[0]
-        face_3_indices = np.where(np.abs(1 + r) < tolerance)[0]
-
-        face_node_indices = np.concatenate((face_0_indices,
-                                            face_1_indices,
-                                            face_2_indices,
-                                            face_3_indices))
-
-        self.face_node_indices = face_node_indices
-
     def _compute_normals_at_face_nodes(self):
         """compute outward pointing normals at elements faces as well as surface Jacobians"""
         Nfp = self.ReferenceElement.nodes_per_face
         K = self.num_cells
+        face_node_indices = self.ReferenceElement.face_node_indices
 
         # interpolate geometric factors to face nodes
-        face_drdx = self.drdx[self.face_node_indices, :]
-        face_dsdx = self.dsdx[self.face_node_indices, :]
-        face_dtdx = self.dtdx[self.face_node_indices, :]
-        face_drdy = self.drdy[self.face_node_indices, :]
-        face_dsdy = self.dsdy[self.face_node_indices, :]
-        face_dtdy = self.dtdy[self.face_node_indices, :]
-        face_drdz = self.drdz[self.face_node_indices, :]
-        face_dsdz = self.dsdz[self.face_node_indices, :]
-        face_dtdz = self.dtdz[self.face_node_indices, :]
+        face_drdx = self.drdx[face_node_indices, :]
+        face_dsdx = self.dsdx[face_node_indices, :]
+        face_dtdx = self.dtdx[face_node_indices, :]
+        face_drdy = self.drdy[face_node_indices, :]
+        face_dsdy = self.dsdy[face_node_indices, :]
+        face_dtdy = self.dtdy[face_node_indices, :]
+        face_drdz = self.drdz[face_node_indices, :]
+        face_dsdz = self.dsdz[face_node_indices, :]
+        face_dtdz = self.dtdz[face_node_indices, :]
 
         # build normal vectors
         nx = np.zeros((4 * Nfp, K))
@@ -272,7 +252,7 @@ class Mesh3d:
         nx /= sJ
         ny /= sJ
         nz /= sJ
-        sJ *= self.jacobians[self.face_node_indices, :]
+        sJ *= self.jacobians[face_node_indices, :]
 
         self.nx = nx
         self.ny = ny
@@ -280,9 +260,75 @@ class Mesh3d:
         self.surface_jacobians = sJ
 
 
+    def _compute_face_node_mappings(self):
+
+        # get constants
+        Np = self.ReferenceElement.nodes_per_element
+        Nfp = self.ReferenceElement.nodes_per_face
+        num_faces = self.ReferenceElement.num_faces
+        tolerance = self.ReferenceElement.NODE_TOLERANCE
+        CtoC = self.cell_to_cells
+        CtoF = self.cell_to_faces
+        K = self.num_cells
+        
+        # create global node ids
+        node_ids = np.arange(K * Np).reshape(Np, K, order='F')
+
+        # create interior exterior map matrices
+        interior_face_node_map = np.zeros((Nfp, num_faces, K), dtype=int)
+        exterior_face_node_map = np.zeros((Nfp, num_faces, K), dtype=int)
+        
+        # reshape face_mask
+        face_node_indices = self.ReferenceElement.face_node_indices.reshape(4, -1).T
+        
+        # Assign interior face node indices based on local face ordering
+        for cell in range(K):
+            for face in range(num_faces):
+                interior_face_node_map[:, face, cell] = node_ids[face_node_indices[:, face], cell]
+
+        # Loop over each cell and its faces to establish exterior face node mapping
+        for cell in range(K):
+            for face in range(num_faces):
+                # get neighbor cell and corresponding face
+                adjacent_cell = CtoC[cell, face]
+                adjacent_face = CtoF[cell, face]
+
+                # Get interior face node indices for current and adjacent cell
+                interior_face_node_ids = interior_face_node_map[:, face, cell]
+                exterior_face_node_ids = interior_face_node_map[:, adjacent_face, adjacent_cell]
+
+                # Retrieve the (x, y, z) coordinates of nodes on interior and exterior faces
+                x_interior = np.ravel(self.x, order='F')[interior_face_node_ids][:, None]
+                y_interior = np.ravel(self.y, order='F')[interior_face_node_ids][:, None]
+                z_interior = np.ravel(self.z, order='F')[interior_face_node_ids][:, None]
+                x_exterior = np.ravel(self.x, order='F')[exterior_face_node_ids][:, None]
+                y_exterior = np.ravel(self.y, order='F')[exterior_face_node_ids][:, None]
+                z_exterior = np.ravel(self.z, order='F')[exterior_face_node_ids][:, None]
+                
+                # Compute pairwise squared distance matrix between interior and exterior nodes
+                node_distance = (x_interior - x_exterior.T)**2 + (y_interior - y_exterior.T)**2 + (z_interior - z_exterior.T)**2
+
+                # Identify matching nodes based on small distance (within tolerance)
+                interior_indices, exterior_indices = np.where(np.abs(node_distance) < tolerance)
+
+                # Map interior face nodes to corresponding exterior face nodes
+                exterior_face_node_map[interior_indices, face, cell] = interior_face_node_map[exterior_indices, adjacent_face, adjacent_cell]
+                
+        # Flatten the mappings for easy indexing
+        self.exterior_face_node_map = exterior_face_node_map.reshape(-1, order='F')
+        self.interior_face_node_map = interior_face_node_map.reshape(-1, order='F')
+
+
+    def _find_boundary_nodes(self):
+        # Identify boundary nodes (nodes with no adjacent exterior match)
+        self.boundary_node_indices = np.where(self.exterior_face_node_map == self.interior_face_node_map)[0]
+        self.boundary_node_ids = self.interior_face_node_map[self.boundary_node_indices]
+
+
 if __name__ == "__main__":
     import sys
     from finite_elements import LagrangeElement
+    from visualizing import *
 
     if len(sys.argv) > 1:
         mesh_file = sys.argv[1]
@@ -290,6 +336,8 @@ if __name__ == "__main__":
         mesh_file = "../inputs/meshes/simple.msh"
     
     dim = 3
-    n = 3
+    n = 4
     mesh = Mesh3d(mesh_file, LagrangeElement(dim,n))
+    elements = np.array([1,2,3,4,5,6])
+    visualize_mesh(mesh, elements, elements, elements,False,False)
     breakpoint()
