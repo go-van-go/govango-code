@@ -1,35 +1,35 @@
 import numpy as np
-from visualizing import *
-from finite_elements import LagrangeElement
+from wave_simulator.visualizing import *
+from wave_simulator.finite_elements import LagrangeElement
 
 class ReferenceElementOperators:
 
-    def __init__(self, FiniteElement: LagrangeElement):
-        self.ReferenceElement =  FiniteElement
-        Np = FiniteElement.nodes_per_element
-        Npf = FiniteElement.nodes_per_face
-        num_faces = FiniteElement.num_faces
-        r = self.ReferenceElement.r
-        self.vandermonde_2d = np.zeros((Npf, Npf))
-        self.vandermonde_3d = np.zeros((len(r), Np))
-        self.vandermonde_3d_r_derivative = np.zeros((len(r), Np))
-        self.vandermonde_3d_s_derivative = np.zeros((len(r), Np))
-        self.vandermonde_3d_t_derivative = np.zeros((len(r), Np))
-        self.inverse_vandermonde_3d = np.zeros((Np,Np))
-        self.mass_matrix = np.zeros((Np,Np))
-        self.s_differentiation_matrix = np.zeros((Np, Np))
-        self.r_differentiation_matrix = np.zeros((Np, Np))
-        self.t_differentiation_matrix = np.zeros((Np, Np))
-        self.lift_matrix = np.zeros((Np, num_faces * Npf))
+    def __init__(self, finite_element: LagrangeElement):
+        self.reference_element =  finite_element
+        nodes_per_cell = finite_element.nodes_per_cell
+        nodes_per_face = finite_element.nodes_per_face
+        num_faces = finite_element.num_faces
+        r = self.reference_element.r
+        self.vandermonde_2d = np.zeros((nodes_per_face, nodes_per_face))
+        self.vandermonde_3d = np.zeros((len(r), nodes_per_cell))
+        self.vandermonde_3d_r_derivative = np.zeros((len(r), nodes_per_cell))
+        self.vandermonde_3d_s_derivative = np.zeros((len(r), nodes_per_cell))
+        self.vandermonde_3d_t_derivative = np.zeros((len(r), nodes_per_cell))
+        self.inverse_vandermonde_3d = np.zeros((nodes_per_cell,nodes_per_cell))
+        self.mass_matrix = np.zeros((nodes_per_cell,nodes_per_cell))
+        self.s_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
+        self.r_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
+        self.t_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
+        self.lift_matrix = np.zeros((nodes_per_cell, num_faces * nodes_per_face))
         
 
         self._calculate_element_operators()
         
 
     def _calculate_element_operators(self):
-        r = self.ReferenceElement.r
-        s = self.ReferenceElement.s
-        t = self.ReferenceElement.t
+        r = self.reference_element.r
+        s = self.reference_element.s
+        t = self.reference_element.t
         self._build_vandermonde_3d(r,s,t)
         self._build_inverse_vandermonde_3d()
         self._build_vandermonde_3d_gradient(r,s,t)
@@ -42,45 +42,45 @@ class ReferenceElementOperators:
         """ create 3D vandermonde matrix"""
 
         # initialize the 3D Vandermonde Matrix
-        V = self.vandermonde_3d
+        vandermonde_matrix = self.vandermonde_3d
         # get orthonormal basis
-        eval_basis_function_3d = self.ReferenceElement.eval_basis_function_3d
+        eval_basis_function_3d = self.reference_element.eval_basis_function_3d
         # get polynomial order of finite element
-        n = self.ReferenceElement.n 
+        n = self.reference_element.n 
         
         # build the Vandermonde matrix
         column_index = 0
         for i in range(n + 1):
             for j in range(n - i + 1):
                 for k in range(n - i - j + 1):
-                    V[:, column_index] = eval_basis_function_3d(r, s, t, i, j, k)
+                    vandermonde_matrix[:, column_index] = eval_basis_function_3d(r, s, t, i, j, k)
                     column_index += 1
 
         # store result
-        self.vandermonde_3d = V
+        self.vandermonde_3d = vandermonde_matrix
 
 
     def _build_vandermonde_2d(self, r, s):
         """ create 2D vandermonde matrix to evaluate flux at faces of each element"""
         
         # initiate vandermonde matrix
-        V = self.vandermonde_2d
+        vandermonde_matrix = self.vandermonde_2d
         
         # get basis function
-        eval_basis_function_2d = self.ReferenceElement.eval_basis_function_2d
+        eval_basis_function_2d = self.reference_element.eval_basis_function_2d
 
         # get polynomial order of finite element
-        n = self.ReferenceElement.n 
+        n = self.reference_element.n 
 
         # build the Vandermonde matrix
         column_index = 0
         for i in range(n + 1):
             for j in range(n - i + 1):
-                V[:, column_index] = eval_basis_function_2d(r, s, i, j)
+                vandermonde_matrix[:, column_index] = eval_basis_function_2d(r, s, i, j)
                 column_index += 1
 
         # return result
-        return V
+        return vandermonde_matrix
                 
 
     def _build_inverse_vandermonde_3d(self):
@@ -96,10 +96,10 @@ class ReferenceElementOperators:
         Vt = self.vandermonde_3d_t_derivative
         
         # get basis function
-        eval_basis_function_3d_gradient = self.ReferenceElement.eval_basis_function_3d_gradient
+        eval_basis_function_3d_gradient = self.reference_element.eval_basis_function_3d_gradient
 
         # get polynomial order of finite element
-        n = self.ReferenceElement.n 
+        n = self.reference_element.n 
         
         # build Vandermonde derivative matrices
         column_index = 0
@@ -148,14 +148,14 @@ class ReferenceElementOperators:
         """ Compute 3D surface to volume lift operator used in DG formulation """
         
         # definition of constants
-        n = self.ReferenceElement.n
-        Np = self.ReferenceElement.nodes_per_element
-        Npf = self.ReferenceElement.nodes_per_face
-        num_faces = self.ReferenceElement.num_faces 
-        face_node_indices = self.ReferenceElement.face_node_indices
-        r = self.ReferenceElement.r
-        s = self.ReferenceElement.s
-        t = self.ReferenceElement.t
+        n = self.reference_element.n
+        Np = self.reference_element.nodes_per_cell
+        Npf = self.reference_element.nodes_per_face
+        num_faces = self.reference_element.num_faces 
+        face_node_indices = self.reference_element.face_node_indices
+        r = self.reference_element.r
+        s = self.reference_element.s
+        t = self.reference_element.t
         V = self.vandermonde_3d
         
         # rearrange face_mask

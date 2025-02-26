@@ -5,7 +5,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
-from finite_elements import LagrangeElement
+from wave_simulator.finite_elements import LagrangeElement
 
 def visualize_array(array, cmap="viridis", colorbar=True):
     """

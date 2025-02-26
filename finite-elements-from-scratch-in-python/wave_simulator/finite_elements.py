@@ -3,7 +3,7 @@ import numpy as np
 from scipy.special import eval_jacobi
 from scipy.special import gamma
 from math import lgamma
-from visualizing import *
+from wave_simulator.visualizing import *
 
 
 class LagrangeElement:
@@ -20,7 +20,7 @@ class LagrangeElement:
     def __init__(self, d, n):
         self.d = d  # dimension
         self.n = n  # polynomial order
-        self.nodes_per_element = (n + 1) * (n + 2) * (n + 3) // 6
+        self.nodes_per_cell = (n + 1) * (n + 2) * (n + 3) // 6
         self.nodes_per_face = (n + 1) * (n + 2) // 2
         self.num_faces = 0  # no. faces per element
         self.nodes = np.array([])

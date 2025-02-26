@@ -1,17 +1,18 @@
 import numpy as np
 import gmsh
-from reference_element_operators import ReferenceElementOperators
+from wave_simulator.reference_element_operators import ReferenceElementOperators
+from wave_simulator.finite_elements import LagrangeElement
 
 class Mesh3d:
-    def __init__(self, msh_file, FiniteElement):
+    def __init__(self, msh_file, finite_element: LagrangeElement):
         gmsh.initialize()
         gmsh.open(msh_file)
         
         self.msh_file = msh_file
-        self.ReferenceElement = FiniteElement 
-        self.ReferenceElementOperators = ReferenceElementOperators(self.ReferenceElement)
-        self.dim = self.ReferenceElement.d
-        self.n = self.ReferenceElement.n  # polynomial order
+        self.reference_element = finite_element 
+        self.reference_element_operators = reference_element_operators(self.reference_element)
+        self.dim = self.reference_element.d
+        self.n = self.reference_element.n  # polynomial order
         self.num_vertices = 0
         self.num_cells= 0
         self.vertex_coordinates = []
@@ -49,6 +50,7 @@ class Mesh3d:
         self._compute_normals_at_face_nodes()
         self._compute_face_node_mappings()
         self._find_boundary_nodes()
+        self._compute_surface_to_volume_jacobian()
 
         gmsh.finalize()
 
@@ -145,9 +147,9 @@ class Mesh3d:
         vx = self.x_vertex
         vy = self.y_vertex
         vz = self.z_vertex
-        r = self.ReferenceElement.r
-        s = self.ReferenceElement.s
-        t = self.ReferenceElement.t
+        r = self.reference_element.r
+        s = self.reference_element.s
+        t = self.reference_element.t
 
         # extract vertex numbers from elements
         va = CtoV[:, 0].T
@@ -167,9 +169,9 @@ class Mesh3d:
        
     def _compute_mapping_coefficients(self):
         """Compute the metric elements for the local mappings of the elements"""
-        Dr = self.ReferenceElementOperators.r_differentiation_matrix
-        Ds = self.ReferenceElementOperators.s_differentiation_matrix
-        Dt = self.ReferenceElementOperators.t_differentiation_matrix
+        Dr = self.reference_element_operators.r_differentiation_matrix
+        Ds = self.reference_element_operators.s_differentiation_matrix
+        Dt = self.reference_element_operators.t_differentiation_matrix
         x = self.x
         y = self.y
         z = self.z
@@ -201,9 +203,9 @@ class Mesh3d:
 
     def _compute_normals_at_face_nodes(self):
         """compute outward pointing normals at elements faces as well as surface Jacobians"""
-        Nfp = self.ReferenceElement.nodes_per_face
+        Nfp = self.reference_element.nodes_per_face
         K = self.num_cells
-        face_node_indices = self.ReferenceElement.face_node_indices
+        face_node_indices = self.reference_element.face_node_indices
 
         # interpolate geometric factors to face nodes
         face_drdx = self.drdx[face_node_indices, :]
@@ -263,10 +265,10 @@ class Mesh3d:
     def _compute_face_node_mappings(self):
 
         # get constants
-        Np = self.ReferenceElement.nodes_per_element
-        Nfp = self.ReferenceElement.nodes_per_face
-        num_faces = self.ReferenceElement.num_faces
-        tolerance = self.ReferenceElement.NODE_TOLERANCE
+        Np = self.reference_element.nodes_per_cell
+        Nfp = self.reference_element.nodes_per_face
+        num_faces = self.reference_element.num_faces
+        tolerance = self.reference_element.NODE_TOLERANCE
         CtoC = self.cell_to_cells
         CtoF = self.cell_to_faces
         K = self.num_cells
@@ -279,7 +281,7 @@ class Mesh3d:
         exterior_face_node_map = np.zeros((Nfp, num_faces, K), dtype=int)
         
         # reshape face_mask
-        face_node_indices = self.ReferenceElement.face_node_indices.reshape(4, -1).T
+        face_node_indices = self.reference_element.face_node_indices.reshape(4, -1).T
         
         # Assign interior face node indices based on local face ordering
         for cell in range(K):
@@ -324,20 +326,26 @@ class Mesh3d:
         self.boundary_node_indices = np.where(self.exterior_face_node_map == self.interior_face_node_map)[0]
         self.boundary_node_ids = self.interior_face_node_map[self.boundary_node_indices]
 
+    def _compute_surface_to_volume_jacobian(self):
+        sJ = self.surface_jacobians 
+        face_node_indices = self.reference_element.face_node_indices
+        J = self.jacobians
+        self.surface_to_volume_jacobian = sJ / J[face_node_indices, :]
+
 
 if __name__ == "__main__":
     import sys
-    from finite_elements import LagrangeElement
-    from visualizing import *
+    from wave_simulator.finite_elements import LagrangeElement
+    from wave_simulator.visualizing import *
 
     if len(sys.argv) > 1:
         mesh_file = sys.argv[1]
     else:
-        mesh_file = "../inputs/meshes/simple.msh"
+        mesh_file = "./inputs/meshes/simple.msh"
     
     dim = 3
     n = 4
     mesh = Mesh3d(mesh_file, LagrangeElement(dim,n))
-    elements = np.array([1,2,3,4,5,6])
+    elements = np.array([1,2])
     visualize_mesh(mesh, elements, elements, elements,False,False)
     breakpoint()

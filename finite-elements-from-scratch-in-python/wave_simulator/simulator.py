@@ -1,15 +1,23 @@
+from wave_simulator.mesh import Mesh3d
+from wave_simulator.physics import LinearAcoustics
+from wave_simulator.time_steppers import LowStorageRungaKutta
+
 class Simulator:
-    def __init__(self, Mesh):
-        self.Mesh = Mesh
+    def __init__(self, mesh: Mesh3d, physics: LinearAcoustics, time_stepper: LowStorageRungaKutta):
+        self.mesh = mesh
+        self.t_initial = 0
+        self.t_final = 10
+        self.t = t_initial
 
     def run(self):
-        pass
+        while time < t_final:  # outer time step loop
+            advance_time_step
 
 if __name__ == "__main__":
     import sys
     from mesh import Mesh3d
-    from finite_elements import LagrangeElement
-    from visualizing import *
+    from wave_simulator.finite_elements import LagrangeElement
+    from wave_simulator.visualizing import *
 
     if len(sys.argv) > 1:
         mesh_file = sys.argv[1]
@@ -18,7 +26,7 @@ if __name__ == "__main__":
     
     dim = 3
     n = 3
-    Mesh = Mesh3d(mesh_file, LagrangeElement(dim,n))
+    mesh = Mesh3d(mesh_file, LagrangeElement(dim,n))
     Simulator = Simulator(Mesh)
     breakpoint()
     
