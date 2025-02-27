@@ -1,4 +1,7 @@
-from wave_simulator.Physics import LinearAcoustics
+import pickle
+import numpy as np
+from wave_simulator.physics import LinearAcoustics
+from wave_simulator.visualizing import visualize_mesh 
 
 
 class LowStorageRungeKutta:
@@ -6,6 +9,8 @@ class LowStorageRungeKutta:
         self.t_initial = 0
         self.t_final = 10
         self.t = t_initial
+        self.current_time_step = 0
+        self.physics = physics
 
         self.rk4a = np.array([0.0,
                               -567301805773.0 / 1357537059087.0,
@@ -20,39 +25,55 @@ class LowStorageRungeKutta:
                               2277821191437.0 / 14882151754819.0])
 
         # Runge-Kutta residual storage
-        self.res_u = np.zeros((Np, K))
-        self.res_v = np.zeros((Np, K))
-        self.res_w = np.zeros((Np, K))
-        self.res_p = np.zeros((Np, K))
+        nodes_per_cell = physics.mesh.reference_element.nodes_per_cell 
+        num_cells = physics.mesh.num_cells
+        self.res_u = np.zeros((nodes_per_cell, num_cells))
+        self.res_v = np.zeros((nodes_per_cell, num_cells))
+        self.res_w = np.zeros((nodes_per_cell, num_cells))
+        self.res_p = np.zeros((nodes_per_cell, num_cells))
 
         self._compute_time_step_size()
 
-    def _compute_time_step_size(self, N, face_scale):
-        dt = 1.0 / (np.max(np.max(face_scale)) * N * N)
+    def _compute_time_step_size(self):
+        n = self.physics.mesh.reference_element.n
+        surface_to_volume_jacobian = self.physics.mesh.surface_to_volume_jacobian
+        dt = 1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n)
         # correct dt for integer # of time steps
         num_time_steps = int(np.ceil(self.t_final/ dt))
-        self.dt = FinalTime / num_time_steps
+        print(dt)
+        self.dt = self.t_final / num_time_steps
 
     def advance_time_step(self):
-        for i in range(0, 5):  # inner multi-stage Runge-Kutta loop
+        u = self.physics.u
+        v = self.physics.v
+        w = self.physics.w
+        p = self.physics.p
+        dt = self.dt
+
+        for i in range(5):  # inner multi-stage Runge-Kutta loop
             # compute right hand side of TM-mode Maxwell's equations
-            rhs_u = self.physics.rhs_u
-            rhs_v = self.physics.rhs_v
-            rhs_w = self.physics.rhs_w
-            rhs_p = self.physics.rhs_p
+            rhs_u, rhs_v, rhs_w, rhs_p = self.physics.compute_rhs()
 
             # initiate, increment Runge-Kutta residuals and update fields
-            res_u = rk4a[i] * res_u + dt * rhs_u
-            u = u + rk4b[i] * res_u
-            res_v = rk4a[i] * res_v + dt * rhs_u
-            v = v + rk4b[i] * res_v
-            res_w = rk4a[i] * res_w + dt * rhs_w
-            w = w + rk4b[i] * res_w
-            res_p = rk4a[i] * res_p + dt * rhs_p
-            p = p + rk4b[i] * res_p
+            self.res_u = self.rk4a[i] * self.res_u + dt * rhs_u
+            u = u + self.rk4b[i] * self.res_u
+            self.res_v = self.rk4a[i] * self.res_v + dt * rhs_u
+            v = v + self.rk4b[i] * self.res_v
+            self.res_w = self.rk4a[i] * self.res_w + dt * rhs_w
+            w = w + self.rk4b[i] * self.res_w
+            self.res_p = self.rk4a[i] * self.res_p + dt * rhs_p
+            p = p + self.rk4b[i] * self.res_p
 
-        # Sum the magnitudes of H and E
-        time += dt  # Increment time
+        self.physics.u = u
+        self.physics.v = v
+        self.physics.w = w
+        self.physics.p = p
+        # Save the self instance to a file
+        with open(f'./outputs/sim_data_{self.current_time_step:0>8}.pkl', 'wb') as file:
+            pickle.dump(self, file)
+        self.t += self.dt  # Increment time
+        self.current_time_step += 1
+        print(self.t)
 
 
 if __name__ == "__main__":

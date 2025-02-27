@@ -6,8 +6,8 @@ class ReferenceElementOperators:
 
     def __init__(self, finite_element: LagrangeElement):
         self.reference_element =  finite_element
-        nodes_per_cell = finite_element.nodes_per_cell
-        nodes_per_face = finite_element.nodes_per_face
+        nodes_per_cell = self.reference_element.nodes_per_cell
+        nodes_per_face = self.reference_element.nodes_per_face
         num_faces = finite_element.num_faces
         r = self.reference_element.r
         self.vandermonde_2d = np.zeros((nodes_per_face, nodes_per_face))

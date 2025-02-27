@@ -10,7 +10,7 @@ class Mesh3d:
         
         self.msh_file = msh_file
         self.reference_element = finite_element 
-        self.reference_element_operators = reference_element_operators(self.reference_element)
+        self.reference_element_operators = ReferenceElementOperators(self.reference_element)
         self.dim = self.reference_element.d
         self.n = self.reference_element.n  # polynomial order
         self.num_vertices = 0

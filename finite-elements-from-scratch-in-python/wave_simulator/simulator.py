@@ -1,13 +1,10 @@
 from wave_simulator.mesh import Mesh3d
 from wave_simulator.physics import LinearAcoustics
-from wave_simulator.time_steppers import LowStorageRungaKutta
+from wave_simulator.time_steppers import LowStorageRungeKutta
 
 class Simulator:
     def __init__(self, mesh: Mesh3d, physics: LinearAcoustics, time_stepper: LowStorageRungaKutta):
         self.mesh = mesh
-        self.t_initial = 0
-        self.t_final = 10
-        self.t = t_initial
 
     def run(self):
         while time < t_final:  # outer time step loop

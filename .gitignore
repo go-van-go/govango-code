@@ -3,3 +3,4 @@
 __pycache__/
 markov-chain-monte-carlo/mcmc_images/
 .pytest_cache/
+outputs/

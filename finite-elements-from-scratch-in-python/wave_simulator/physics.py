@@ -1,10 +1,11 @@
+import numpy as np
 from wave_simulator.mesh import Mesh3d
-import pdb
+
 
 class LinearAcoustics:
     def __init__(self, mesh: Mesh3d):
         self.mesh = mesh
-        nodes_per_cell = mesh.ReferenceElement.nodes_per_cell
+        nodes_per_cell = mesh.reference_element.nodes_per_cell
         num_cells = mesh.num_cells
         self.u = np.zeros((nodes_per_cell, num_cells)) # x component of velocity field 
         self.v = np.zeros((nodes_per_cell, num_cells)) # y component of velocity field
@@ -13,7 +14,8 @@ class LinearAcoustics:
         self.alpha = 1  # upwinding factor
         self.set_initial_conditions()
 
-    def set_initial_conditions(self, kind="gaussian", center=(0, 0, 0), sigma=0.1, wavelength=1.0):
+
+    def set_initial_conditions(self, kind="gaussian", center=(0.5, 0.5, 0.5), sigma=0.1, wavelength=1.0):
         """Set initial conditions for testing the wave propagation."""
         x = self.mesh.x
         y = self.mesh.x
@@ -39,10 +41,14 @@ class LinearAcoustics:
         self._compute_jump_along_normal()
         self._apply_boundary_conditions()
         self._compute_flux()
+        return self.rhs_u, self.rhs_v, self.rhs_w, self.rhs_p
+
+
+
 
     def _compute_jump_along_normal(self):
-        interior_values = mesh.interior_face_node_map
-        exterior_values = mesh.exterior_face_node_map
+        interior_values = self.mesh.interior_face_node_map
+        exterior_values = self.mesh.exterior_face_node_map
 
         # compute jumps at faces
         self.du = (np.ravel(self.u, order='F')[exterior_values] - np.ravel(self.u, order='F')[interior_values])
@@ -50,10 +56,11 @@ class LinearAcoustics:
         self.dw = (np.ravel(self.w, order='F')[exterior_values] - np.ravel(self.w, order='F')[interior_values])
         self.dp = (np.ravel(self.p, order='F')[exterior_values] - np.ravel(self.p, order='F')[interior_values])
 
+
     def _apply_boundary_conditions(self):
         # Apply reflective conditions: u+ = -u-, p+ = p-
-        boundary_nodes = mesh.boundary_node_indices
-        boundary_nodes_ids = mesh.boundary_node_ids
+        boundary_nodes = self.mesh.boundary_node_indices
+        boundary_nodes_ids = self.mesh.boundary_node_ids
         self.du[boundary_nodes] = -2 * np.ravel(self.u, order='F')[boundary_nodes_ids]
         self.dv[boundary_nodes] = -2 * np.ravel(self.v, order='F')[boundary_nodes_ids]
         self.dw[boundary_nodes] = -2 * np.ravel(self.w, order='F')[boundary_nodes_ids]
@@ -61,11 +68,11 @@ class LinearAcoustics:
 
     def _compute_flux(self):
         # spatial derivative matrices
-        Dr = self.mesh.ReferenceElementOperators.r_differentiation_matrix
-        Ds = self.mesh.ReferenceElementOperators.s_differentiation_matrix
-        Dt = self.mesh.ReferenceElementOperators.t_differentiation_matrix
+        Dr = self.mesh.reference_element_operators.r_differentiation_matrix
+        Ds = self.mesh.reference_element_operators.s_differentiation_matrix
+        Dt = self.mesh.reference_element_operators.t_differentiation_matrix
         face_scale = self.mesh.surface_to_volume_jacobian
-        lift = self.mesh.ReferenceElementOperators.lift_matrix
+        lift = self.mesh.reference_element_operators.lift_matrix
 
         # local spatial derivatives on reference tetrahedron
         drdx = self.mesh.drdx
@@ -87,8 +94,8 @@ class LinearAcoustics:
         dpdz = drdz * (Dr @ self.p) + dsdz * (Ds @ self.p) + dtdz * (Dt @ self.p)
 
         # reshape jump matrices
-        Npf = self.mesh.ReferenceElement.nodes_per_face
-        num_faces = self.mesh.ReferenceElement.num_faces
+        Npf = self.mesh.reference_element.nodes_per_face
+        num_faces = self.mesh.reference_element.num_faces
         K = self.mesh.num_cells
         self.du = self.du.reshape((Npf*num_faces, K), order='F')
         self.dv = self.dv.reshape((Npf*num_faces, K), order='F')
@@ -117,7 +124,7 @@ class LinearAcoustics:
         self.rhs_p = rhs_p
 
 
-
+if __name__ == "__main__":
     import sys
     from wave_simulator.finite_elements import LagrangeElement
     from wave_simulator.visualizing import *

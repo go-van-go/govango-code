@@ -5,7 +5,7 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
-from wave_simulator.finite_elements import LagrangeElement
+#from wave_simulator.finite_elements import LagrangeElement
 
 def visualize_array(array, cmap="viridis", colorbar=True):
     """
@@ -160,7 +160,41 @@ def plot_normals(plotter, mesh, norms):
             # Add normal vectors as arrows
             plotter.add_arrows(normal_vector_origin, normal_vector_direction, mag=0.1, color='red')
 
-def visualize_mesh(mesh, elements, norms, nodes, boundary_nodes=False, boundary_elements=False):
+
+def plot_solution(plotter, mesh, solution):
+    """Plot nodes on the mesh with colors based on the solution values."""
+    # Extract x, y, z coordinates for the nodes in the specified elements
+    x_coords = mesh.x.flatten()
+    y_coords = mesh.y.flatten()
+    z_coords = mesh.z.flatten()
+    
+    # Stack into nodal points
+    points_to_plot = np.column_stack((x_coords, y_coords, z_coords))
+    
+    # Flatten the solution matrix to align with the coordinates
+    solution_values = solution.flatten()
+    
+    # Add the points to the plot with colors based on the solution values
+    # Add the points to the plot with colors based on the solution values
+    plotter.add_points(
+        points_to_plot,
+        scalars=solution_values,
+        cmap="viridis",  # Use any colormap you prefer
+        clim=(-1, 1),  # Fix the color bounds
+        point_size=10,
+        render_points_as_spheres=True
+    )
+
+
+def visualize_mesh(mesh,
+                   elements=[],
+                   norms=[],
+                   nodes=[],
+                   solution=[],
+                   boundary_nodes=False,
+                   boundary_elements=False,
+                   file_name = "mesh",
+                   save=False):
     """Visualize the mesh with nodes, elements, and normals."""
     # Create a PyVista plotter
     plotter = pv.Plotter()
@@ -174,7 +208,8 @@ def visualize_mesh(mesh, elements, norms, nodes, boundary_nodes=False, boundary_
     plotter.add_mesh(grid, style='wireframe', color='black')
 
     # Plot nodes
-    plot_nodes(plotter, mesh, nodes)
+    if nodes:
+        plot_nodes(plotter, mesh, nodes)
 
     # Plot boundary nodes if requested
     if boundary_nodes:
@@ -185,14 +220,24 @@ def visualize_mesh(mesh, elements, norms, nodes, boundary_nodes=False, boundary_
         plot_boundary_elements(plotter, mesh)
 
     # Plot elements
-    plot_elements(plotter, mesh, elements)
+    if elements:
+        plot_elements(plotter, mesh, elements)
 
     # Plot normals
-    plot_normals(plotter, mesh, norms)
+    if norms:
+        plot_normals(plotter, mesh, norms)
 
+    # plot solution
+    if solution.any():
+        plot_solution(plotter, mesh, solution)
+
+    plotter.show_grid()
     # Export and show the plot
-    plotter.export_gltf("highlighted_cells.gltf")  # Supports .glb
-    plotter.show()
+    if save:
+        plotter.export_gltf(f"./outputs/{file_name}.gltf")  # Supports .glb
+    else:
+        plotter.show()
+
 
 if __name__ == "__main__":
     from simulator import Simulator
