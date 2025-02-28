@@ -160,10 +160,9 @@ def plot_normals(plotter, mesh, norms):
             # Add normal vectors as arrows
             plotter.add_arrows(normal_vector_origin, normal_vector_direction, mag=0.1, color='red')
 
-
 def plot_solution(plotter, mesh, solution):
-    """Plot nodes on the mesh with colors based on the solution values."""
-    # Extract x, y, z coordinates for the nodes in the specified elements
+    """Plot nodes on the mesh with colors and opacity based on solution values."""
+    # Extract x, y, z coordinates for the nodes
     x_coords = mesh.x.flatten()
     y_coords = mesh.y.flatten()
     z_coords = mesh.z.flatten()
@@ -174,13 +173,17 @@ def plot_solution(plotter, mesh, solution):
     # Flatten the solution matrix to align with the coordinates
     solution_values = solution.flatten()
     
-    # Add the points to the plot with colors based on the solution values
-    # Add the points to the plot with colors based on the solution values
+    # Compute opacity: fully opaque (1) if value is 0, otherwise scaled by |value|
+    opacity_values = np.abs(solution_values)  # Ranges from 0 to 1
+    opacity_values[solution_values == 0] = 1  # Ensure zero values are fully opaque
+    
+    # Add the points to the plot with colors and opacity
     plotter.add_points(
         points_to_plot,
         scalars=solution_values,
         cmap="viridis",  # Use any colormap you prefer
         clim=(-1, 1),  # Fix the color bounds
+        opacity=opacity_values,  # Set per-point opacity
         point_size=10,
         render_points_as_spheres=True
     )
@@ -197,7 +200,8 @@ def visualize_mesh(mesh,
                    save=False):
     """Visualize the mesh with nodes, elements, and normals."""
     # Create a PyVista plotter
-    plotter = pv.Plotter()
+#    plotter = pv.Plotter()
+    plotter = pv.Plotter(off_screen=True)  # Off-screen rendering to avoid display
 
     # Create PyVista UnstructuredGrid
     cells = np.hstack([np.full((mesh.num_cells, 1), 4), mesh.cell_to_vertices]).flatten()
@@ -234,9 +238,12 @@ def visualize_mesh(mesh,
     plotter.show_grid()
     # Export and show the plot
     if save:
-        plotter.export_gltf(f"./outputs/{file_name}.gltf")  # Supports .glb
+#        plotter.export_gltf(f"./outputs/{file_name}.gltf")  # Supports .glb
+        plotter.screenshot(f"./outputs/{file_name}.png")
     else:
         plotter.show()
+
+    plotter.close()  
 
 
 if __name__ == "__main__":

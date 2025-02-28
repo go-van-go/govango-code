@@ -68,9 +68,7 @@ class LowStorageRungeKutta:
         self.physics.v = v
         self.physics.w = w
         self.physics.p = p
-        # Save the self instance to a file
-        with open(f'./outputs/sim_data_{self.current_time_step:0>8}.pkl', 'wb') as file:
-            pickle.dump(self, file)
+
         self.t += self.dt  # Increment time
         self.current_time_step += 1
         print(self.t)

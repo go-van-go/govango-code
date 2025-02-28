@@ -323,8 +323,8 @@ class Mesh3d:
 
     def _find_boundary_nodes(self):
         # Identify boundary nodes (nodes with no adjacent exterior match)
-        self.boundary_node_indices = np.where(self.exterior_face_node_map == self.interior_face_node_map)[0]
-        self.boundary_node_ids = self.interior_face_node_map[self.boundary_node_indices]
+        self.boundary_face_node_indices = np.where(self.exterior_face_node_map == self.interior_face_node_map)[0]
+        self.boundary_node_indices= self.interior_face_node_map[self.boundary_face_node_indices]
 
     def _compute_surface_to_volume_jacobian(self):
         sJ = self.surface_jacobians 

@@ -5,45 +5,51 @@ from wave_simulator.mesh import Mesh3d
 class LinearAcoustics:
     def __init__(self, mesh: Mesh3d):
         self.mesh = mesh
-        nodes_per_cell = mesh.reference_element.nodes_per_cell
         num_cells = mesh.num_cells
+        nodes_per_cell = mesh.reference_element.nodes_per_cell
+        nodes_per_face = mesh.reference_element.nodes_per_face
+        # define pressure and velocity fields over global nodes
         self.u = np.zeros((nodes_per_cell, num_cells)) # x component of velocity field 
         self.v = np.zeros((nodes_per_cell, num_cells)) # y component of velocity field
         self.w = np.zeros((nodes_per_cell, num_cells)) # z component of velocity field
         self.p = np.zeros((nodes_per_cell, num_cells)) # pressure field 
-        self.alpha = 1  # upwinding factor
+        # define jumps in fields across faces nodes
+        self.du = np.zeros((nodes_per_face * num_faces, num_cells))
+        self.dv = np.zeros((nodes_per_face * num_faces, num_cells))
+        self.dw = np.zeros((nodes_per_face * num_faces, num_cells))
+        self.dp = np.zeros((nodes_per_face * num_faces, num_cells))
+        self.alpha = 0.9  # upwinding factor
         self.set_initial_conditions()
 
-
-    def set_initial_conditions(self, kind="gaussian", center=(0.5, 0.5, 0.5), sigma=0.1, wavelength=1.0):
+    def set_initial_conditions(self, kind="gaussian", center=(0.5, 0.5, 0.5), sigma=0.1, wavelength=0.1):
         """Set initial conditions for testing the wave propagation."""
         x = self.mesh.x
-        y = self.mesh.x
-        z = self.mesh.x
-
+        y = self.mesh.y
+        z = self.mesh.z
+        
         if kind == "gaussian":
             # Gaussian pulse centered at (x0, y0, z0)
             x0, y0, z0 = center
             self.p = np.exp(-((x - x0)**2 + (y - y0)**2 + (z - z0)**2) / (2 * sigma**2))
+            
+            # Normalize so max amplitude is 1
+            self.p /= np.max(self.p)
             
         elif kind == "sine":
             # Plane wave in the x-direction
             k = 2 * np.pi / wavelength
             self.p = np.sin(k * x)
             
-        # Velocity is initially zero
-        self.u.fill(0)
-        self.v.fill(0)
-        self.w.fill(0)
-
+            # Velocity is initially zero
+            self.u.fill(0)
+            self.v.fill(0)
+            self.w.fill(0)
 
     def compute_rhs(self):
         self._compute_jump_along_normal()
         self._apply_boundary_conditions()
         self._compute_flux()
         return self.rhs_u, self.rhs_v, self.rhs_w, self.rhs_p
-
-
 
 
     def _compute_jump_along_normal(self):
@@ -59,12 +65,12 @@ class LinearAcoustics:
 
     def _apply_boundary_conditions(self):
         # Apply reflective conditions: u+ = -u-, p+ = p-
-        boundary_nodes = self.mesh.boundary_node_indices
-        boundary_nodes_ids = self.mesh.boundary_node_ids
-        self.du[boundary_nodes] = -2 * np.ravel(self.u, order='F')[boundary_nodes_ids]
-        self.dv[boundary_nodes] = -2 * np.ravel(self.v, order='F')[boundary_nodes_ids]
-        self.dw[boundary_nodes] = -2 * np.ravel(self.w, order='F')[boundary_nodes_ids]
-        self.dp[boundary_nodes] = 0  # No jump in pressure
+        boundary_face_node_indices = self.mesh.boundary_face_node_indices
+        boundary_node_indices = self.mesh.boundary_node_indices
+        self.du[boundary_face_node_indices] = 0#-2 * np.ravel(self.u, order='F')[boundary_node_indices]
+        self.dv[boundary_face_node_indices] = 0#-2 * np.ravel(self.v, order='F')[boundary_node_indices]
+        self.dw[boundary_face_node_indices] = 0#-2 * np.ravel(self.w, order='F')[boundary_node_indices]
+        self.dp[boundary_face_node_indices] = 0  # No jump in pressure
 
     def _compute_flux(self):
         # spatial derivative matrices
@@ -142,5 +148,6 @@ if __name__ == "__main__":
     breakpoint()
 
     pass
+
 
 
