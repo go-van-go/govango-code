@@ -65,17 +65,17 @@ def plot_nodes(plotter, mesh, nodes):
 
 def plot_boundary_nodes(plotter, mesh):
     """Plot boundary nodes on the mesh."""
-    if hasattr(mesh, 'boundary_node_ids') and mesh.boundary_node_ids is not None:
-        # Extract x, y, z coordinates for the boundary nodes
-        x_coords = mesh.x.flatten(order="F")[mesh.boundary_node_ids]
-        y_coords = mesh.y.flatten(order="F")[mesh.boundary_node_ids]
-        z_coords = mesh.z.flatten(order="F")[mesh.boundary_node_ids]
-        
-        # Stack into boundary nodal points
-        boundary_points_to_plot = np.column_stack((x_coords, y_coords, z_coords))
-        
-        # Add the boundary points to the plot
-        plotter.add_points(boundary_points_to_plot, color="green", point_size=10, render_points_as_spheres=True)
+    
+    # Extract x, y, z coordinates for the boundary nodes
+    x_coords = mesh.x.flatten(order="F")[mesh.boundary_node_indices]
+    y_coords = mesh.y.flatten(order="F")[mesh.boundary_node_indices]
+    z_coords = mesh.z.flatten(order="F")[mesh.boundary_node_indices]
+    
+    # Stack into boundary nodal points
+    boundary_points_to_plot = np.column_stack((x_coords, y_coords, z_coords))
+    
+    # Add the boundary points to the plot
+    plotter.add_points(boundary_points_to_plot, color="green", point_size=10, render_points_as_spheres=True)
 
 
 def plot_boundary_elements(plotter, mesh):
@@ -163,26 +163,30 @@ def plot_normals(plotter, mesh, norms):
 def plot_solution(plotter, mesh, solution):
     """Plot nodes on the mesh with colors and opacity based on solution values."""
     # Extract x, y, z coordinates for the nodes
-    x_coords = mesh.x.flatten()
-    y_coords = mesh.y.flatten()
-    z_coords = mesh.z.flatten()
+    interior_node_indices = mesh.interior_face_node_indices
+    exterior_node_indices = mesh.exterior_face_node_indices
+    x_coords = np.ravel(mesh.x, order='F')
+    y_coords = np.ravel(mesh.y, order='F')
+    z_coords = np.ravel(mesh.z, order='F')
     
     # Stack into nodal points
     points_to_plot = np.column_stack((x_coords, y_coords, z_coords))
     
     # Flatten the solution matrix to align with the coordinates
-    solution_values = solution.flatten()
+    solution_values = np.ravel(solution, order='F')
+    solution_values[interior_node_indices] = 0
+    solution_values[exterior_node_indices] = 0
     
     # Compute opacity: fully opaque (1) if value is 0, otherwise scaled by |value|
     opacity_values = np.abs(solution_values)  # Ranges from 0 to 1
-    opacity_values[solution_values == 0] = 1  # Ensure zero values are fully opaque
+    opacity_values[solution_values == 0] = 0  # Ensure zero values are fully opaque
     
     # Add the points to the plot with colors and opacity
     plotter.add_points(
         points_to_plot,
         scalars=solution_values,
         cmap="viridis",  # Use any colormap you prefer
-        clim=(-1, 1),  # Fix the color bounds
+        #clim=(-1, 1),  # Fix the color bounds
         opacity=opacity_values,  # Set per-point opacity
         point_size=10,
         render_points_as_spheres=True
@@ -201,7 +205,8 @@ def visualize_mesh(mesh,
     """Visualize the mesh with nodes, elements, and normals."""
     # Create a PyVista plotter
 #    plotter = pv.Plotter()
-    plotter = pv.Plotter(off_screen=True)  # Off-screen rendering to avoid display
+    #plotter = pv.Plotter(off_screen=True)  # Off-screen rendering to avoid display
+    plotter = pv.Plotter()  # Off-screen rendering to avoid display
 
     # Create PyVista UnstructuredGrid
     cells = np.hstack([np.full((mesh.num_cells, 1), 4), mesh.cell_to_vertices]).flatten()
@@ -209,7 +214,7 @@ def visualize_mesh(mesh,
     grid = pv.UnstructuredGrid(cells, cell_types, mesh.vertex_coordinates)
 
     # Add mesh
-    plotter.add_mesh(grid, style='wireframe', color='black')
+    #plotter.add_mesh(grid, style='wireframe', color='black')
 
     # Plot nodes
     if nodes:
@@ -232,8 +237,8 @@ def visualize_mesh(mesh,
         plot_normals(plotter, mesh, norms)
 
     # plot solution
-    if solution.any():
-        plot_solution(plotter, mesh, solution)
+    #if solution.any():
+    #    plot_solution(plotter, mesh, solution)
 
     plotter.show_grid()
     # Export and show the plot

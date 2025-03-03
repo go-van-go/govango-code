@@ -6,23 +6,20 @@ class ReferenceElementOperators:
 
     def __init__(self, finite_element: LagrangeElement):
         self.reference_element =  finite_element
+        num_faces = finite_element.num_faces
         nodes_per_cell = self.reference_element.nodes_per_cell
         nodes_per_face = self.reference_element.nodes_per_face
-        num_faces = finite_element.num_faces
-        r = self.reference_element.r
         self.vandermonde_2d = np.zeros((nodes_per_face, nodes_per_face))
-        self.vandermonde_3d = np.zeros((len(r), nodes_per_cell))
-        self.vandermonde_3d_r_derivative = np.zeros((len(r), nodes_per_cell))
-        self.vandermonde_3d_s_derivative = np.zeros((len(r), nodes_per_cell))
-        self.vandermonde_3d_t_derivative = np.zeros((len(r), nodes_per_cell))
+        self.vandermonde_3d = np.zeros((nodes_per_cell, nodes_per_cell))
+        self.vandermonde_3d_r_derivative = np.zeros((nodes_per_cell, nodes_per_cell))
+        self.vandermonde_3d_s_derivative = np.zeros((nodes_per_cell, nodes_per_cell))
+        self.vandermonde_3d_t_derivative = np.zeros((nodes_per_cell, nodes_per_cell))
         self.inverse_vandermonde_3d = np.zeros((nodes_per_cell,nodes_per_cell))
         self.mass_matrix = np.zeros((nodes_per_cell,nodes_per_cell))
-        self.s_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
         self.r_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
+        self.s_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
         self.t_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
         self.lift_matrix = np.zeros((nodes_per_cell, num_faces * nodes_per_face))
-        
-
         self._calculate_element_operators()
         
 
@@ -189,5 +186,3 @@ class ReferenceElementOperators:
             epsilon_matrix[row_index[:, np.newaxis], column_index] += mass_matrix_on_face
                 
         self.lift_matrix = V @ (V.T @ epsilon_matrix)
-
-

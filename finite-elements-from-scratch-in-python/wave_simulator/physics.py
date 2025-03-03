@@ -6,6 +6,7 @@ class LinearAcoustics:
     def __init__(self, mesh: Mesh3d):
         self.mesh = mesh
         num_cells = mesh.num_cells
+        num_faces = mesh.reference_element.num_faces
         nodes_per_cell = mesh.reference_element.nodes_per_cell
         nodes_per_face = mesh.reference_element.nodes_per_face
         # define pressure and velocity fields over global nodes
@@ -18,10 +19,10 @@ class LinearAcoustics:
         self.dv = np.zeros((nodes_per_face * num_faces, num_cells))
         self.dw = np.zeros((nodes_per_face * num_faces, num_cells))
         self.dp = np.zeros((nodes_per_face * num_faces, num_cells))
-        self.alpha = 0.9  # upwinding factor
+        self.alpha = 0.5  # upwinding factor
         self.set_initial_conditions()
 
-    def set_initial_conditions(self, kind="gaussian", center=(0.5, 0.5, 0.5), sigma=0.1, wavelength=0.1):
+    def set_initial_conditions(self, kind="gaussian", center=(0.5, 0.5, 0.5), sigma=0.1, wavelength=1):
         """Set initial conditions for testing the wave propagation."""
         x = self.mesh.x
         y = self.mesh.y
@@ -33,17 +34,13 @@ class LinearAcoustics:
             self.p = np.exp(-((x - x0)**2 + (y - y0)**2 + (z - z0)**2) / (2 * sigma**2))
             
             # Normalize so max amplitude is 1
-            self.p /= np.max(self.p)
+            #self.p /= np.max(self.p)
             
         elif kind == "sine":
             # Plane wave in the x-direction
             k = 2 * np.pi / wavelength
             self.p = np.sin(k * x)
-            
-            # Velocity is initially zero
-            self.u.fill(0)
-            self.v.fill(0)
-            self.w.fill(0)
+
 
     def compute_rhs(self):
         self._compute_jump_along_normal()
@@ -53,11 +50,11 @@ class LinearAcoustics:
 
 
     def _compute_jump_along_normal(self):
-        interior_values = self.mesh.interior_face_node_map
-        exterior_values = self.mesh.exterior_face_node_map
+        interior_values = self.mesh.interior_face_node_indices
+        exterior_values = self.mesh.exterior_face_node_indices
 
         # compute jumps at faces
-        self.du = (np.ravel(self.u, order='F')[exterior_values] - np.ravel(self.u, order='F')[interior_values])
+        self.du = (np.ravel(self.u, order='f')[exterior_values] - np.ravel(self.u, order='F')[interior_values])
         self.dv = (np.ravel(self.v, order='F')[exterior_values] - np.ravel(self.v, order='F')[interior_values])
         self.dw = (np.ravel(self.w, order='F')[exterior_values] - np.ravel(self.w, order='F')[interior_values])
         self.dp = (np.ravel(self.p, order='F')[exterior_values] - np.ravel(self.p, order='F')[interior_values])
@@ -67,10 +64,13 @@ class LinearAcoustics:
         # Apply reflective conditions: u+ = -u-, p+ = p-
         boundary_face_node_indices = self.mesh.boundary_face_node_indices
         boundary_node_indices = self.mesh.boundary_node_indices
-        self.du[boundary_face_node_indices] = 0#-2 * np.ravel(self.u, order='F')[boundary_node_indices]
-        self.dv[boundary_face_node_indices] = 0#-2 * np.ravel(self.v, order='F')[boundary_node_indices]
-        self.dw[boundary_face_node_indices] = 0#-2 * np.ravel(self.w, order='F')[boundary_node_indices]
-        self.dp[boundary_face_node_indices] = 0  # No jump in pressure
+        # Normal velocity reverses sign: u+ = -u-
+        self.du[boundary_face_node_indices] = -2 * np.ravel(self.u, order='F')[boundary_node_indices]
+        self.dv[boundary_face_node_indices] = -2 * np.ravel(self.v, order='F')[boundary_node_indices]
+        self.dw[boundary_face_node_indices] = -2 * np.ravel(self.w, order='F')[boundary_node_indices]
+        # Pressure remains unchanged: p+ = p-
+        self.dp[boundary_face_node_indices] = 0
+
 
     def _compute_flux(self):
         # spatial derivative matrices
@@ -109,13 +109,14 @@ class LinearAcoustics:
         self.dp = self.dp.reshape((Npf*num_faces, K), order='F')
         
         # Compute normal jump of pressure
+        ndotdu = self.mesh.nx * self.du + self.mesh.ny * self.dv + self.mesh.nz * self.dw
         ndotdp = self.mesh.nx * self.dp + self.mesh.ny * self.dp + self.mesh.nz * self.dp
-
-        # Compute normal jumps component-wise (no dot product!)
-        flux_u = -self.mesh.nx * (self.alpha * self.du - self.dp)
-        flux_v = -self.mesh.ny * (self.alpha * self.dv - self.dp)
-        flux_w = -self.mesh.nz * (self.alpha * self.dw - self.dp)
-        flux_p = (self.du + self.dv + self.dw) - self.alpha * ndotdp
+        
+        # Compute fluxes 
+        flux_u = -self.mesh.nx * (self.alpha * ndotdu - self.dp)
+        flux_v = -self.mesh.ny * (self.alpha * ndotdu - self.dp)
+        flux_w = -self.mesh.nz * (self.alpha * ndotdu - self.dp)
+        flux_p = (ndotdu - self.alpha * self.dp)
 
         # Compute right-hand side terms using lifting operation
         rhs_u = -dpdx + lift @ (face_scale * flux_u / 2)
@@ -128,6 +129,8 @@ class LinearAcoustics:
         self.rhs_v = rhs_v
         self.rhs_w = rhs_w
         self.rhs_p = rhs_p
+
+        self.rhs_u = rhs_u
 
 
 if __name__ == "__main__":
@@ -148,6 +151,8 @@ if __name__ == "__main__":
     breakpoint()
 
     pass
+
+
 
 
 

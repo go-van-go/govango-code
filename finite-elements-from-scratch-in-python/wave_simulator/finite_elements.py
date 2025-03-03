@@ -224,6 +224,8 @@ class LagrangeElement:
         numerator = 2 ** (alpha + beta + 1) * gamma(n + alpha + 1) * gamma(n + beta + 1)
         denominator = (2 * n + alpha + beta + 1) * gamma(n + alpha + beta + 1) * gamma(n + 1)
         gamma_n = numerator / denominator
+
+        print(numerator)
         
         # normalize the polynomial
         #P_n_normalized = P_n / jacobi_norm

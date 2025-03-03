@@ -263,7 +263,6 @@ class Mesh3d:
 
 
     def _compute_face_node_mappings(self):
-
         # get constants
         Np = self.reference_element.nodes_per_cell
         Nfp = self.reference_element.nodes_per_face
@@ -277,8 +276,8 @@ class Mesh3d:
         node_ids = np.arange(K * Np).reshape(Np, K, order='F')
 
         # create interior exterior map matrices
-        interior_face_node_map = np.zeros((Nfp, num_faces, K), dtype=int)
-        exterior_face_node_map = np.zeros((Nfp, num_faces, K), dtype=int)
+        interior_face_node_indices = np.zeros((Nfp, num_faces, K), dtype=int)
+        exterior_face_node_indices = np.zeros((Nfp, num_faces, K), dtype=int)
         
         # reshape face_mask
         face_node_indices = self.reference_element.face_node_indices.reshape(4, -1).T
@@ -286,7 +285,7 @@ class Mesh3d:
         # Assign interior face node indices based on local face ordering
         for cell in range(K):
             for face in range(num_faces):
-                interior_face_node_map[:, face, cell] = node_ids[face_node_indices[:, face], cell]
+                interior_face_node_indices[:, face, cell] = node_ids[face_node_indices[:, face], cell]
 
         # Loop over each cell and its faces to establish exterior face node mapping
         for cell in range(K):
@@ -296,8 +295,8 @@ class Mesh3d:
                 adjacent_face = CtoF[cell, face]
 
                 # Get interior face node indices for current and adjacent cell
-                interior_face_node_ids = interior_face_node_map[:, face, cell]
-                exterior_face_node_ids = interior_face_node_map[:, adjacent_face, adjacent_cell]
+                interior_face_node_ids = interior_face_node_indices[:, face, cell]
+                exterior_face_node_ids = interior_face_node_indices[:, adjacent_face, adjacent_cell]
 
                 # Retrieve the (x, y, z) coordinates of nodes on interior and exterior faces
                 x_interior = np.ravel(self.x, order='F')[interior_face_node_ids][:, None]
@@ -314,17 +313,17 @@ class Mesh3d:
                 interior_indices, exterior_indices = np.where(np.abs(node_distance) < tolerance)
 
                 # Map interior face nodes to corresponding exterior face nodes
-                exterior_face_node_map[interior_indices, face, cell] = interior_face_node_map[exterior_indices, adjacent_face, adjacent_cell]
+                exterior_face_node_indices[interior_indices, face, cell] = interior_face_node_indices[exterior_indices, adjacent_face, adjacent_cell]
                 
         # Flatten the mappings for easy indexing
-        self.exterior_face_node_map = exterior_face_node_map.reshape(-1, order='F')
-        self.interior_face_node_map = interior_face_node_map.reshape(-1, order='F')
+        self.exterior_face_node_indices = exterior_face_node_indices.reshape(-1, order='F')
+        self.interior_face_node_indices = interior_face_node_indices.reshape(-1, order='F')
 
 
     def _find_boundary_nodes(self):
         # Identify boundary nodes (nodes with no adjacent exterior match)
-        self.boundary_face_node_indices = np.where(self.exterior_face_node_map == self.interior_face_node_map)[0]
-        self.boundary_node_indices= self.interior_face_node_map[self.boundary_face_node_indices]
+        self.boundary_face_node_indices = np.where(self.exterior_face_node_indices == self.interior_face_node_indices)[0]
+        self.boundary_node_indices= self.interior_face_node_indices[self.boundary_face_node_indices]
 
     def _compute_surface_to_volume_jacobian(self):
         sJ = self.surface_jacobians 

@@ -7,11 +7,12 @@ from wave_simulator.visualizing import *
 
 # create finite element
 dimension = 3
-polynomial_order = 3
+polynomial_order = 4
 lagrange_element = LagrangeElement(dimension, polynomial_order)
 
 # create Mesh
 mesh_file = "./inputs/meshes/fine_grid.msh"
+#mesh_file = "./inputs/meshes/simple.msh"
 mesh = Mesh3d(mesh_file, lagrange_element)
 
 # select physics
@@ -19,13 +20,14 @@ physics = LinearAcoustics(mesh)
 
 # select time stepping method
 t_initial = 0
-t_final = 1
+t_final = 0.01
 time_stepper = LowStorageRungeKutta(physics, t_initial, t_final)
 
 while time_stepper.t < time_stepper.t_final:
+    visualize_mesh(mesh, file_name=f"solution_t_{time_stepper.current_time_step:0>8}.png", solution=time_stepper.physics.p, save=False)
     time_stepper.advance_time_step()
+
     # Save the self instance to a file
     #with open(f'./outputs/sim_data_{self.current_time_step:0>8}.pkl', 'wb') as file:
     #    pickle.dump(self, file)
-    visualize_mesh(time_stepper.physics.mesh, file_name=f"solution_t_{time_stepper.current_time_step:0>8}.png", solution=time_stepper.physics.p, save=True)
 

@@ -41,7 +41,7 @@ class LowStorageRungeKutta:
         # correct dt for integer # of time steps
         num_time_steps = int(np.ceil(self.t_final/ dt))
         print(dt)
-        self.dt = self.t_final / num_time_steps
+        self.dt = (self.t_final / num_time_steps)
 
     def advance_time_step(self):
         u = self.physics.u
@@ -51,18 +51,17 @@ class LowStorageRungeKutta:
         dt = self.dt
 
         for i in range(5):  # inner multi-stage Runge-Kutta loop
-            # compute right hand side of TM-mode Maxwell's equations
             rhs_u, rhs_v, rhs_w, rhs_p = self.physics.compute_rhs()
 
             # initiate, increment Runge-Kutta residuals and update fields
             self.res_u = self.rk4a[i] * self.res_u + dt * rhs_u
-            u = u + self.rk4b[i] * self.res_u
-            self.res_v = self.rk4a[i] * self.res_v + dt * rhs_u
-            v = v + self.rk4b[i] * self.res_v
+            u = u + self.rk4b[i] * res_u
+            self.res_v = self.rk4a[i] * self.res_v + dt * rhs_v
+            v = v + self.rk4b[i] * res_v
             self.res_w = self.rk4a[i] * self.res_w + dt * rhs_w
-            w = w + self.rk4b[i] * self.res_w
+            w = w + self.rk4b[i] * res_w
             self.res_p = self.rk4a[i] * self.res_p + dt * rhs_p
-            p = p + self.rk4b[i] * self.res_p
+            p = p + self.rk4b[i] * res_p
 
         self.physics.u = u
         self.physics.v = v
@@ -71,7 +70,7 @@ class LowStorageRungeKutta:
 
         self.t += self.dt  # Increment time
         self.current_time_step += 1
-        print(self.t)
+        print(self.current_time_step)
 
 
 if __name__ == "__main__":
