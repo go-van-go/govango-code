@@ -12,6 +12,7 @@ class LowStorageRungeKutta:
         self.current_time_step = 0
         self.physics = physics
 
+        # Runge-Kutta residual storage
         self.rk4a = np.array([0.0,
                               -567301805773.0 / 1357537059087.0,
                               -2404267990393.0 / 2016746695238.0,
@@ -24,7 +25,6 @@ class LowStorageRungeKutta:
                               3134564353537.0 / 4481467310338.0,
                               2277821191437.0 / 14882151754819.0])
 
-        # Runge-Kutta residual storage
         nodes_per_cell = physics.mesh.reference_element.nodes_per_cell 
         num_cells = physics.mesh.num_cells
         self.res_u = np.zeros((nodes_per_cell, num_cells))
@@ -40,7 +40,7 @@ class LowStorageRungeKutta:
         dt = 1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n)
         # correct dt for integer # of time steps
         num_time_steps = int(np.ceil(self.t_final/ dt))
-        print(dt)
+        print(f"time step size: {dt}")
         self.dt = (self.t_final / num_time_steps)
 
     def advance_time_step(self):
@@ -55,13 +55,13 @@ class LowStorageRungeKutta:
 
             # initiate, increment Runge-Kutta residuals and update fields
             self.res_u = self.rk4a[i] * self.res_u + dt * rhs_u
-            u = u + self.rk4b[i] * res_u
+            u = u + self.rk4b[i] * self.res_u
             self.res_v = self.rk4a[i] * self.res_v + dt * rhs_v
-            v = v + self.rk4b[i] * res_v
+            v = v + self.rk4b[i] * self.res_v
             self.res_w = self.rk4a[i] * self.res_w + dt * rhs_w
-            w = w + self.rk4b[i] * res_w
+            w = w + self.rk4b[i] * self.res_w
             self.res_p = self.rk4a[i] * self.res_p + dt * rhs_p
-            p = p + self.rk4b[i] * res_p
+            p = p + self.rk4b[i] * self.res_p
 
         self.physics.u = u
         self.physics.v = v

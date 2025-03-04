@@ -7,7 +7,7 @@ from wave_simulator.visualizing import *
 
 # create finite element
 dimension = 3
-polynomial_order = 4
+polynomial_order = 6
 lagrange_element = LagrangeElement(dimension, polynomial_order)
 
 # create Mesh
@@ -24,7 +24,17 @@ t_final = 0.01
 time_stepper = LowStorageRungeKutta(physics, t_initial, t_final)
 
 while time_stepper.t < time_stepper.t_final:
-    visualize_mesh(mesh, file_name=f"solution_t_{time_stepper.current_time_step:0>8}.png", solution=time_stepper.physics.p, save=False)
+    solution = time_stepper.physics.u
+    #elements = [i for i in range(200)]
+    #elements = mesh.cell_to_cells[5:50].flatten().tolist()
+    elements = []
+    visualize_mesh(mesh,
+                   file_name=f"solution_t_{time_stepper.current_time_step:0>8}.png",
+                   solution=solution,
+                   elements=elements,
+                   boundary_nodes=False,
+                   save=True)
+
     time_stepper.advance_time_step()
 
     # Save the self instance to a file

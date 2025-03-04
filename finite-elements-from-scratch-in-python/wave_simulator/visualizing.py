@@ -174,8 +174,14 @@ def plot_solution(plotter, mesh, solution):
     
     # Flatten the solution matrix to align with the coordinates
     solution_values = np.ravel(solution, order='F')
-    solution_values[interior_node_indices] = 0
-    solution_values[exterior_node_indices] = 0
+    # Assuming solution_values is a 1D array
+    all_indices = np.arange(len(solution_values))  # Get all indices of solution_values
+    non_boundary_indices = np.setdiff1d(all_indices, mesh.boundary_node_indices)
+
+    # Now you can access the non-boundary values
+    #solution_values[non_boundary_indices] = 0
+    #solution_values[interior_node_indices] = 0
+    #solution_values[exterior_node_indices] = 0
     
     # Compute opacity: fully opaque (1) if value is 0, otherwise scaled by |value|
     opacity_values = np.abs(solution_values)  # Ranges from 0 to 1
@@ -204,15 +210,12 @@ def visualize_mesh(mesh,
                    save=False):
     """Visualize the mesh with nodes, elements, and normals."""
     # Create a PyVista plotter
-#    plotter = pv.Plotter()
-    #plotter = pv.Plotter(off_screen=True)  # Off-screen rendering to avoid display
-    plotter = pv.Plotter()  # Off-screen rendering to avoid display
+    plotter = pv.Plotter(off_screen=save)
 
     # Create PyVista UnstructuredGrid
     cells = np.hstack([np.full((mesh.num_cells, 1), 4), mesh.cell_to_vertices]).flatten()
     cell_types = np.full(mesh.num_cells, pv.CellType.TETRA)  # Tetrahedral elements
     grid = pv.UnstructuredGrid(cells, cell_types, mesh.vertex_coordinates)
-
     # Add mesh
     #plotter.add_mesh(grid, style='wireframe', color='black')
 
@@ -237,14 +240,14 @@ def visualize_mesh(mesh,
         plot_normals(plotter, mesh, norms)
 
     # plot solution
-    #if solution.any():
-    #    plot_solution(plotter, mesh, solution)
+    if solution.any():
+        plot_solution(plotter, mesh, solution)
 
     plotter.show_grid()
     # Export and show the plot
     if save:
 #        plotter.export_gltf(f"./outputs/{file_name}.gltf")  # Supports .glb
-        plotter.screenshot(f"./outputs/{file_name}.png")
+        plotter.screenshot(f"./outputs/{file_name}")
     else:
         plotter.show()
 

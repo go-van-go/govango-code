@@ -88,6 +88,190 @@ class LagrangeElement:
 
         self.face_node_indices = face_node_indices
 
+    def _jacobi(self, n, x, a=0., b=0., out=None):
+        '''Evaluation of a Jacobi polynomial.
+
+        Args:
+        n (int): The degree of the polynomial.
+        x (ndarray): Points at which to evaluate the polynomial.
+        a (float, optional): Left exponent of weight function.
+        b (float, optional): Right exponent of weight function.
+        out (ndarray, optional): Output placed here if given, same shape as
+            ``x``.
+
+        Returns:
+        ndarray: same shape as ``x``, values of the `n`-th Jacobi polynomials
+        with respect to the weight function `(1+x)^a(1-x)^b` at the points in
+        ``x``.
+        '''
+        return eval_jacobi(n, a, b, x, out)
+
+    def _jacobinorm2(self, n, a=0., b=0.):
+        '''The square of the weighted `L_2` norm of a Jacobi polynomial.
+
+        Args:
+        n (int): The degree of the polynomial.
+        x (ndarray): Points at which to evaluate the polynomial.
+        a (float, optional): Left exponent of weight function.
+        b (float, optional): Right exponent of weight function.
+
+        Returns:
+        float: `\\int_{-1}^1 (1+x)^a (1-x)^b P^{(a,b)}_n(x)^2\\ dx`.
+        '''
+        if n == 0:
+            return 2.**(a+b+1) * np.exp(lgamma(a + 1) + lgamma(b + 1) -
+                                        lgamma(a + b + 2))
+        else:
+            return (2.**(a+b+1) / (2*n + a + b + 1) *
+                    np.exp(lgamma(n + a + 1) + lgamma(n + b + 1) -
+                           lgamma(n + a + b + 1) - lgamma(n + 1)))
+
+    def _jacobider(self, n, x, a=0., b=0., k=1, out=None):
+        '''Evaluation of a the `k`-th derivative of a Jacobi polynomial.
+    
+        Args:
+            n (int): The degree of the polynomial.
+            x (ndarray): Points at which to evaluate the polynomial.
+            a (float, optional): Left exponent of weight function.
+            b (float, optional): Right exponent of weight function.
+            out (ndarray, optional): Output placed here if given, same shape as
+                ``x``.
+    
+        Returns:
+            ndarray: same shape as ``x``, values of the `k`-th derivative of the
+            `n`-th Jacobi polynomials with respect to the weight function
+            `(1+x)^a(1-x)^b` at the points in ``x``.
+        '''
+        if k > n:
+            if out:
+                out[:] = 0.
+                return out
+            else:
+                return np.zeros(np.shape(x))
+        return self._jacobi(n-k, x, a+k, b+k) * np.exp(lgamma(a+b+n+1+k) -
+                                                 lgamma(a+b+n+1)) / 2**k
+
+
+
+    def proriolkoornwinderdubiner(self, d, i, x, out=None):
+        '''Evaluation of a Proriol-Koornwinder-Dubiner (PKD) polynomial.
+
+        Args:
+        d (int): The spatial dimension.
+        i (tuple(int)): Multi-index of length `d`, the degree of the leading
+            monomial of the PKD polynomial in each spatial coordinate.
+        x (ndarray): Shape (`N`, `d`), points at which to evaluate the PDK
+            polynomial.
+        out (ndarray, optional): Shape (`N`,) array to hold output.
+
+        Returns:
+        ndarray: Shape (`N`,), evaluation of the PKD polynomial with leading
+        monomial degrees `i` at the points `x`.  The PKD polynomials are
+        orthonormal on the biunit simplex.
+
+        References:
+        :cite:`Pror57,KaMc64,Koor75,Dubi91`
+        '''
+        if (d == 1):
+            return self._jacobi(i[0], x[:, 0], out=out) / self._jacobinorm2(i[0])**0.5
+        else:
+            isum = sum(i[0:d-1])
+            factor = (1. - x[:, d-1])
+            tol = 1.e-10
+            nonzero = np.abs(factor) > tol
+            if out is None:
+                px = np.ndarray(x[:, 0:(d-1)].shape)
+            else:
+                px = out
+            px[nonzero, :] = ((x[nonzero, 0:(d-1)] + 1.) * 2. /
+                              factor[nonzero, np.newaxis] - 1.)
+            px[~nonzero, :] = -1.
+            pi = self.proriolkoornwinderdubiner(d-1, i[0:d-1], px)
+            pi *= self._jacobi(i[-1], x[:, d-1], 2*isum + d - 1, 0.)
+            pi /= self._jacobinorm2(i[-1], 2*isum+d-1, 0.)**0.5
+            pi *= factor**isum
+            pi *= 2.**((d-1)/2)
+            return pi
+
+    def proriolkoornwinderdubinergrad(self, d, i, x, out=None, both=False):
+        '''Evaluation of the gradient of a Proriol-Koornwinder-Dubiner (PKD)
+        polynomial.
+    
+        Args:
+            d (int): The spatial dimension.
+            i (tuple(int)): Multi-index of length `d`, the degree of the leading
+                monomial of the PKD polynomial in each spatial coordinate.
+            x (ndarray): Shape (`N`, `d`), points at which to evaluate the PDK
+                polynomial.
+            out (ndarray, optional): Shape (`N`, `d`) array to hold output.
+            both: (bool, optional): If ``True``, return both the function value and
+                gradient.
+    
+        Returns:
+            If ``both=False``, an ndarray with shape (`N`, `d`) containing the
+            gradient of the PKD polynomial with leading monomial degrees `i` at the
+            points `x`.
+    
+            If ``both=True``, a tuple containing two ndarrays, one for the
+            functional value and one for its gradient, in that order.
+        '''
+        if (d == 1):
+            jnorm = self._jacobinorm2(i[0])**0.5
+            if both:
+                pkd = self._jacobi(i[0], x[:, 0]) / jnorm
+            out = self._jacobider(i[0], x[:, 0]).reshape(x.shape)
+            out /= jnorm
+            if both:
+                return (pkd, out)
+            return out
+        else:
+            isum = sum(i[0:d-1])
+            factor = (1. - x[:, d-1])
+            tol = 1.e-10
+            nonzero = np.abs(factor) > tol
+            px = np.ndarray(x[:, 0:(d-1)].shape)
+            px[nonzero, :] = ((x[nonzero, 0:(d-1)] + 1.) * 2. /
+                              factor[nonzero, np.newaxis] - 1.)
+            px[~nonzero, :] = -1.
+            pxgradfisum = np.zeros(px.shape + (d,))
+            for j in range(d-1):
+                pxgradfisum[nonzero, j, j] = 2. * factor[nonzero]**(isum - 1)
+                pxgradfisum[nonzero, j, d-1] = ((x[nonzero, j] + 1.) *
+                                                2. * factor[nonzero]**(isum-2))
+                if isum > 0:
+                    pxgradfisum[~nonzero, j, j] = 2. * factor[~nonzero]**(isum - 1)
+                    # otherwise, pigrad will be zero
+                if isum > 1:
+                    pxgradfisum[~nonzero, j, d-1] = ((x[~nonzero, j] + 1.) * 2. *
+                                                     factor[~nonzero]**(isum-2))
+                    # otherwise, pigrad * pzgrad will be independent of z
+            pi, pigrad = self.proriolkoornwinderdubinergrad(d-1, i[0:d-1], px,
+                                                       both=True)
+            pz = self._jacobi(i[-1], x[:, d-1], 2*isum + d - 1, 0.)
+            jnorm = self._jacobinorm2(i[-1], 2*isum+d-1, 0.)**0.5
+            pz /= jnorm
+            pzgrad = self._jacobider(i[-1], x[:, d-1], 2*isum + d - 1, 0.)
+            pzgrad /= jnorm
+            fisum = factor**isum
+            if not (out is None):
+                pkdgrad = out
+                pkdgrad[:] = 0.
+            else:
+                pkdgrad = np.zeros(x.shape)
+            if both:
+                pkd = pi * pz * fisum * 2.**((d-1)/2)
+            pkdgrad[:, :] = (np.einsum('ij,ijk->ik',
+                                       pigrad,
+                                       pxgradfisum).reshape(x.shape) *
+                             pz[:, np.newaxis])
+            pkdgrad[:, d-1] += pi * pzgrad * fisum
+            if (isum != 0):
+                pkdgrad[:, d-1] -= isum * pi * pz * factor**(isum-1)
+            pkdgrad *= 2.**((d-1)/2)
+            if both:
+                return (pkd, pkdgrad)
+            return pkdgrad
+
 
     def eval_basis_function_3d(self, r, s, t, i, j, k):
         """ evaluate 3D orthonormal basis functions"""
