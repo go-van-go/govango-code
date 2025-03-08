@@ -13,34 +13,34 @@ class Mesh3d:
         self.reference_element_operators = ReferenceElementOperators(self.reference_element)
         self.dim = self.reference_element.d
         self.n = self.reference_element.n  # polynomial order
-        self.num_vertices = 0
-        self.num_cells= 0
-        self.vertex_coordinates = []
-        self.x_vertex = [] # vertex x coordinates
-        self.y_vertex = [] # vertex y coordinates
-        self.z_vertex = [] # vertex z coordinates
-        self.x = []  # nodal x coordinates
-        self.y = []  # nodal y coordinates
-        self.z = []  # nodal z coordinates
-        self.nx = None
-        self.ny = None
-        self.nz = None
-        self.edge_vertices = []
-        self.cell_to_vertices = []
-        self.cell_to_cells = []
-        self.cell_to_faces = []
-        # reference to physical mapping coefficients
-        self.drdx = None
-        self.drdy = None
-        self.drdz = None
-        self.dsdx = None
-        self.dsdy = None
-        self.dsdz = None
-        self.dtdx = None
-        self.dtdy = None
-        self.dtdz = None
-        self.jacobians = {}
-        #self.determinants = {}
+       # self.num_vertices = 0
+       # self.num_cells= 0
+       # self.vertex_coordinates = []
+       # self.x_vertex = [] # vertex x coordinates
+       # self.y_vertex = [] # vertex y coordinates
+       # self.z_vertex = [] # vertex z coordinates
+       # self.x = []  # nodal x coordinates
+       # self.y = []  # nodal y coordinates
+       # self.z = []  # nodal z coordinates
+       # self.nx = None
+       # self.ny = None
+       # self.nz = None
+       # self.edge_vertices = []
+       # self.cell_to_vertices = []
+       # self.cell_to_cells = []
+       # self.cell_to_faces = []
+       # reference to physical mapping coefficients
+       # self.drdx = None
+       # self.drdy = None
+       # self.drdz = None
+       # self.dsdx = None
+       # self.dsdy = None
+       # self.dsdz = None
+       # self.dtdx = None
+       # self.dtdy = None
+       # self.dtdz = None
+       # self.jacobians = {}
+       # #self.determinants = {}
         
         self._extract_mesh_info()
         self._build_connectivityMatricies()
@@ -83,9 +83,9 @@ class Mesh3d:
         
         # create list of all faces
         face_vertices = np.vstack((CtoV[:, [0, 1, 2]],
-                            CtoV[:, [0, 1, 3]],
-                            CtoV[:, [1, 2, 3]],
-                            CtoV[:, [0, 2, 3]]))
+                                   CtoV[:, [0, 1, 3]],
+                                   CtoV[:, [1, 2, 3]],
+                                   CtoV[:, [0, 2, 3]]))
 
         # sort each row from low to high for hash algorithm
         face_vertices = np.sort(face_vertices, axis=1)
@@ -96,11 +96,11 @@ class Mesh3d:
                      face_vertices[:, 2] + 1
 
         # vertex id from 1 - num_faces* num_cells
-        vertex_ids = np.arange(1, num_faces*K+1)
+        vertex_ids = np.arange(0, num_faces*K)
        
         # set up default cell to cell and cell to faces connectivity
-        CtoC = np.tile(np.arange(1, K+1)[:, np.newaxis], (1, num_faces))
-        CtoF = np.tile(np.arange(1, num_faces+1), (K, 1))
+        CtoC = np.tile(np.arange(K)[:, np.newaxis], num_faces)
+        CtoF = np.tile(np.arange(num_faces), (K,1))
 
         # build a master matrix (mappingTable) that we will solve by 
         # sorting by one column to create the connectivity matricies
@@ -120,10 +120,10 @@ class Mesh3d:
         match_r = np.vstack((sorted_map_table[matches + 1], sorted_map_table[matches]))
         
         # insert matches
-        CtoC_tmp = np.ravel(CtoC, order='F') - 1
-        CtoF_tmp = np.ravel(CtoF, order='F') - 1
-        CtoC_tmp[match_l[:, 1] - 1] = (match_r[:, 2] - 1)
-        CtoF_tmp[match_l[:, 1] - 1] = (match_r[:, 3] - 1)
+        CtoC_tmp = np.ravel(CtoC, order='F')
+        CtoF_tmp = np.ravel(CtoF, order='F')
+        CtoC_tmp[match_l[:, 1]] = match_r[:, 2]
+        CtoF_tmp[match_l[:, 1]] = match_r[:, 3]
         
         CtoC = CtoC_tmp.reshape(CtoC.shape, order='F')
         CtoF = CtoF_tmp.reshape(CtoF.shape, order='F')
@@ -205,6 +205,8 @@ class Mesh3d:
         """compute outward pointing normals at elements faces as well as surface Jacobians"""
         Nfp = self.reference_element.nodes_per_face
         K = self.num_cells
+        num_faces = self.reference_element.num_faces
+        
         face_node_indices = self.reference_element.face_node_indices
 
         # interpolate geometric factors to face nodes
@@ -219,9 +221,9 @@ class Mesh3d:
         face_dtdz = self.dtdz[face_node_indices, :]
 
         # build normal vectors
-        nx = np.zeros((4 * Nfp, K))
-        ny = np.zeros((4 * Nfp, K))
-        nz = np.zeros((4 * Nfp, K))
+        nx = np.zeros((num_faces * Nfp, K))
+        ny = np.zeros((num_faces * Nfp, K))
+        nz = np.zeros((num_faces * Nfp, K))
 
         # create vectors of indices of each face
         face_0_indices = np.arange(0, Nfp)
@@ -330,21 +332,3 @@ class Mesh3d:
         face_node_indices = self.reference_element.face_node_indices
         J = self.jacobians
         self.surface_to_volume_jacobian = sJ / J[face_node_indices, :]
-
-
-if __name__ == "__main__":
-    import sys
-    from wave_simulator.finite_elements import LagrangeElement
-    from wave_simulator.visualizing import *
-
-    if len(sys.argv) > 1:
-        mesh_file = sys.argv[1]
-    else:
-        mesh_file = "./inputs/meshes/simple.msh"
-    
-    dim = 3
-    n = 4
-    mesh = Mesh3d(mesh_file, LagrangeElement(dim,n))
-    elements = np.array([1,2])
-    visualize_mesh(mesh, elements, elements, elements,False,False)
-    breakpoint()

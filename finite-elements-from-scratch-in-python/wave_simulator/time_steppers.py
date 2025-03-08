@@ -44,10 +44,10 @@ class LowStorageRungeKutta:
         self.dt = (self.t_final / num_time_steps)
 
     def advance_time_step(self):
-        u = self.physics.u
-        v = self.physics.v
-        w = self.physics.w
-        p = self.physics.p
+        #u = self.physics.u
+        #v = self.physics.v
+        #w = self.physics.w
+        #p = self.physics.p
         dt = self.dt
 
         for i in range(5):  # inner multi-stage Runge-Kutta loop
@@ -55,18 +55,18 @@ class LowStorageRungeKutta:
 
             # initiate, increment Runge-Kutta residuals and update fields
             self.res_u = self.rk4a[i] * self.res_u + dt * rhs_u
-            u = u + self.rk4b[i] * self.res_u
+            self.physics.u = self.physics.u + self.rk4b[i] * self.res_u
             self.res_v = self.rk4a[i] * self.res_v + dt * rhs_v
-            v = v + self.rk4b[i] * self.res_v
+            self.physics.v = self.physics.v + self.rk4b[i] * self.res_v
             self.res_w = self.rk4a[i] * self.res_w + dt * rhs_w
-            w = w + self.rk4b[i] * self.res_w
+            self.physics.w = self.physics.w + self.rk4b[i] * self.res_w
             self.res_p = self.rk4a[i] * self.res_p + dt * rhs_p
-            p = p + self.rk4b[i] * self.res_p
+            self.physics.p = self.physics.p + self.rk4b[i] * self.res_p
 
-        self.physics.u = u
-        self.physics.v = v
-        self.physics.w = w
-        self.physics.p = p
+        #self.physics.u = u
+        #self.physics.v = v
+        #self.physics.w = w
+        #self.physics.p = p
 
         self.t += self.dt  # Increment time
         self.current_time_step += 1

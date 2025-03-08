@@ -7,57 +7,35 @@ class ReferenceElementOperators:
 
     def __init__(self, finite_element: LagrangeElement):
         self.reference_element =  finite_element
-        num_faces = finite_element.num_faces
-        nodes_per_cell = self.reference_element.nodes_per_cell
-        nodes_per_face = self.reference_element.nodes_per_face
-        self.vandermonde_2d = np.zeros((nodes_per_face, nodes_per_face))
-        self.vandermonde_3d = np.zeros((nodes_per_cell, nodes_per_cell))
-        self.vandermonde_3d_r_derivative = np.zeros((nodes_per_cell, nodes_per_cell))
-        self.vandermonde_3d_s_derivative = np.zeros((nodes_per_cell, nodes_per_cell))
-        self.vandermonde_3d_t_derivative = np.zeros((nodes_per_cell, nodes_per_cell))
-        self.inverse_vandermonde_3d = np.zeros((nodes_per_cell,nodes_per_cell))
-        self.mass_matrix = np.zeros((nodes_per_cell,nodes_per_cell))
-        self.r_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
-        self.s_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
-        self.t_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
-        self.lift_matrix = np.zeros((nodes_per_cell, num_faces * nodes_per_face))
+        #num_faces = finite_element.num_faces
+        #nodes_per_cell = self.reference_element.nodes_per_cell
+        #nodes_per_face = self.reference_element.nodes_per_face
+        #self.vandermonde_2d = np.zeros((nodes_per_face, nodes_per_face))
+        #self.vandermonde_3d = np.zeros((nodes_per_cell, nodes_per_cell))
+        #self.vandermonde_3d_r_derivative = np.zeros((nodes_per_cell, nodes_per_cell))
+        #self.vandermonde_3d_s_derivative = np.zeros((nodes_per_cell, nodes_per_cell))
+        #self.vandermonde_3d_t_derivative = np.zeros((nodes_per_cell, nodes_per_cell))
+        #self.inverse_vandermonde_3d = np.zeros((nodes_per_cell,nodes_per_cell))
+        #self.mass_matrix = np.zeros((nodes_per_cell,nodes_per_cell))
+        #self.r_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
+        #self.s_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
+        #self.t_differentiation_matrix = np.zeros((nodes_per_cell, nodes_per_cell))
+        #self.lift_matrix = np.zeros((nodes_per_cell, num_faces * nodes_per_face))
         self._calculate_element_operators()
         
 
     def _calculate_element_operators(self):
-        r = self.reference_element.r
-        s = self.reference_element.s
-        t = self.reference_element.t
         #self._build_vandermonde_3d()
-        self.vandermonde_3d = self._build_vandermonde(self.reference_element.d, self.reference_element.nodes)
+        d = self.reference_element.d
+        nodes = self.reference_element.nodes
+        self.vandermonde_3d = self._build_vandermonde(d, nodes)
         self._build_inverse_vandermonde_3d()
         self._build_vandermonde_3d_gradient()
         self._build_mass_matrix()
         self._build_differentiation_matrices()
         self._build_lift_matrix()
         
-        
-    def old_build_vandermonde_3d(self, r, s, t):
-        """ create 3D vandermonde matrix"""
-
-        # initialize the 3D Vandermonde Matrix
-        vandermonde_matrix = self.vandermonde_3d
-        # get orthonormal basis
-        eval_basis_function_3d = self.reference_element.eval_basis_function_3d
-        # get polynomial order of finite element
-        n = self.reference_element.n 
-        
-        # build the Vandermonde matrix
-        column_index = 0
-        for i in range(n + 1):
-            for j in range(n - i + 1):
-                for k in range(n - i - j + 1):
-                    vandermonde_matrix[:, column_index] = eval_basis_function_3d(r, s, t, i, j, k)
-                    column_index += 1
-
-        # store result
-        self.vandermonde_3d = vandermonde_matrix
-    
+   
     def _multiindex_equal(self, d, k):
         """A generator for :math:`d`-tuple multi-indices whose sum is :math:`k`.
 
@@ -116,7 +94,7 @@ class ReferenceElementOperators:
         for a in self._multiindex_equal(d+1, k):
             yield a[0:d]
 
-    def _npolys(self, d, k):
+    def _num_polynomials(self, d, k):
         """The number of polynomials up to a degree :math:`k` in :math:`d` dimensions.
 
         Args:
@@ -164,7 +142,7 @@ class ReferenceElementOperators:
         out = None
         C = None
         n = self.reference_element.n
-        N = self._npolys(d, n)
+        N = self._num_polynomials(d, n)
         if out:
             V = out
         else:
@@ -176,70 +154,23 @@ class ReferenceElementOperators:
             V[:] = 0.
         for (k, i) in enumerate(self._multiindex_up_to(d, n)):
             if C is None:
-                V[:, k] = self.reference_element.proriolkoornwinderdubiner(d, i, x)
+                V[:, k] = self.reference_element._eval_pdk_polynomial(d, i, x)
             else:
                 V[:, :] += np.einsum('i,j->ij',
-                                     self.reference_element.proriolkoornwinderdubiner(d, i, x),
+                                     self.reference_element._eval_pdk_polynomial(d, i, x),
                                      C[k, :])
         return V
 
 
 
-    def old_build_vandermonde_2d(self, r, s):
-        """ create 2D vandermonde matrix to evaluate flux at faces of each element"""
-        
-        # initiate vandermonde matrix
-        vandermonde_matrix = self.vandermonde_2d
-        
-        # get basis function
-        eval_basis_function_2d = self.reference_element.eval_basis_function_2d
-
-        # get polynomial order of finite element
-        n = self.reference_element.n 
-
-        # build the Vandermonde matrix
-        column_index = 0
-        for i in range(n + 1):
-            for j in range(n - i + 1):
-                vandermonde_matrix[:, column_index] = eval_basis_function_2d(r, s, i, j)
-                column_index += 1
-
-        # return result
-        return vandermonde_matrix
-                
+  
 
     def _build_inverse_vandermonde_3d(self):
         """ invert the 3D Vandermonde Matrix """
         self.inverse_vandermonde_3d = np.linalg.inv(self.vandermonde_3d)
 
 
-    def old_build_vandermonde_3d_gradient(self, r, s, t):
-        """ Build gradient (Vr, Vs, Vt) of Vandermonde matrix"""
-        # initialize Vandermonde derivative matrices
-        Vr = self.vandermonde_3d_r_derivative
-        Vs = self.vandermonde_3d_s_derivative
-        Vt = self.vandermonde_3d_t_derivative
-        
-        # get basis function
-        eval_basis_function_3d_gradient = self.reference_element.eval_basis_function_3d_gradient
 
-        # get polynomial order of finite element
-        n = self.reference_element.n 
-        
-        # build Vandermonde derivative matrices
-        column_index = 0
-        for i in range(n + 1):
-            for j in range(n - i + 1):
-                for k in range(n - i - j + 1):
-                    Vr[:, column_index], Vs[:, column_index], Vt[:, column_index] = \
-                        eval_basis_function_3d_gradient(r, s, t, i, j, k)
-                    column_index += 1
-                    
-        # store result
-        self.vandermonde_3d_r_derivative = Vr
-        self.vandermonde_3d_s_derivative = Vs
-        self.vandermonde_3d_t_derivative = Vt
- 
     def _build_vandermonde_3d_gradient(self):
         # def proriolkoornwinderdubinervandermondegrad(d, n, x, out=None, C=None,
         #                                         work=None, both=False):
@@ -273,7 +204,7 @@ class ReferenceElementOperators:
         work=None
         both=False
 
-        N = self._npolys(d, n)
+        N = self._num_polynomials(d, n)
         if out:
             Vg = out
         else:
@@ -293,10 +224,10 @@ class ReferenceElementOperators:
             work = np.ndarray(x.shape[0:-1] + (d,))
         for (k, i) in enumerate(self._multiindex_up_to(d, n)):
             if both:
-                v, work = self.reference_element.proriolkoornwinderdubinergrad(d, i, x, out=work,
+                v, work = self.reference_element.eval_pdk_polynomial_gradient(d, i, x, out=work,
                                                         both=True)
             else:
-                work = self.reference_element.proriolkoornwinderdubinergrad(d, i, x, out=work)
+                work = self.reference_element.eval_pdk_polynomial_gradient(d, i, x, out=work)
             if C is None:
                 if both:
                     V[:, k] = v
@@ -315,7 +246,6 @@ class ReferenceElementOperators:
         self.vandermonde_3d_s_derivative = Vg[:,:,1]
         self.vandermonde_3d_t_derivative = Vg[:,:,2]
         #return Vg
-
 
 
     def _build_mass_matrix(self):
@@ -351,8 +281,8 @@ class ReferenceElementOperators:
         
         # definition of constants
         n = self.reference_element.n
-        Np = self.reference_element.nodes_per_cell
-        Npf = self.reference_element.nodes_per_face
+        nodes_per_cell = self.reference_element.nodes_per_cell
+        nodes_per_face = self.reference_element.nodes_per_face
         num_faces = self.reference_element.num_faces 
         face_node_indices = self.reference_element.face_node_indices
         r = self.reference_element.r
@@ -364,7 +294,7 @@ class ReferenceElementOperators:
         face_node_indices = face_node_indices.reshape(4, -1).T
         
         # initiate epsilon matrix
-        epsilon_matrix = np.zeros((Np, num_faces * Npf))
+        epsilon_matrix = np.zeros((nodes_per_cell, num_faces * nodes_per_face))
         
         for face in range(num_faces):
             # get the nodes on the specific face
@@ -388,8 +318,80 @@ class ReferenceElementOperators:
             mass_matrix_on_face = np.linalg.inv(vandermonde_2d @ vandermonde_2d.T)
             
             row_index = face_node_indices[:, face]
-            column_index = np.arange((face) * Npf, (face + 1) * Npf)
+            column_index = np.arange((face) * nodes_per_face, (face + 1) * nodes_per_face)
             
             epsilon_matrix[row_index[:, np.newaxis], column_index] += mass_matrix_on_face
                 
         self.lift_matrix = V @ (V.T @ epsilon_matrix)
+
+#    def old_build_vandermonde_3d_gradient(self, r, s, t):
+#        """ Build gradient (Vr, Vs, Vt) of Vandermonde matrix"""
+#        # initialize Vandermonde derivative matrices
+#        Vr = self.vandermonde_3d_r_derivative
+#        Vs = self.vandermonde_3d_s_derivative
+#        Vt = self.vandermonde_3d_t_derivative
+#        
+#        # get basis function
+#        eval_basis_function_3d_gradient = self.reference_element.eval_basis_function_3d_gradient
+#
+#        # get polynomial order of finite element
+#        n = self.reference_element.n 
+#        
+#        # build Vandermonde derivative matrices
+#        column_index = 0
+#        for i in range(n + 1):
+#            for j in range(n - i + 1):
+#                for k in range(n - i - j + 1):
+#                    Vr[:, column_index], Vs[:, column_index], Vt[:, column_index] = \
+#                        eval_basis_function_3d_gradient(r, s, t, i, j, k)
+#                    column_index += 1
+#                    
+#        # store result
+#        self.vandermonde_3d_r_derivative = Vr
+#        self.vandermonde_3d_s_derivative = Vs
+#        self.vandermonde_3d_t_derivative = Vt
+ 
+#    def old_build_vandermonde_2d(self, r, s):
+#        """ create 2D vandermonde matrix to evaluate flux at faces of each element"""
+#        
+#        # initiate vandermonde matrix
+#        vandermonde_matrix = self.vandermonde_2d
+#        
+#        # get basis function
+#        eval_basis_function_2d = self.reference_element.eval_basis_function_2d
+#
+#        # get polynomial order of finite element
+#        n = self.reference_element.n 
+#
+#        # build the Vandermonde matrix
+#        column_index = 0
+#        for i in range(n + 1):
+#            for j in range(n - i + 1):
+#                vandermonde_matrix[:, column_index] = eval_basis_function_2d(r, s, i, j)
+#                column_index += 1
+#
+#        # return result
+#        return vandermonde_matrix
+              
+     
+#    def old_build_vandermonde_3d(self, r, s, t):
+#        """ create 3D vandermonde matrix"""
+#
+#        # initialize the 3D Vandermonde Matrix
+#        vandermonde_matrix = self.vandermonde_3d
+#        # get orthonormal basis
+#        eval_basis_function_3d = self.reference_element.eval_basis_function_3d
+#        # get polynomial order of finite element
+#        n = self.reference_element.n 
+#        
+#        # build the Vandermonde matrix
+#        column_index = 0
+#        for i in range(n + 1):
+#            for j in range(n - i + 1):
+#                for k in range(n - i - j + 1):
+#                    vandermonde_matrix[:, column_index] = eval_basis_function_3d(r, s, t, i, j, k)
+#                    column_index += 1
+#
+#        # store result
+#        self.vandermonde_3d = vandermonde_matrix
+    

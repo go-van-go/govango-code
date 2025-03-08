@@ -5,48 +5,51 @@ from wave_simulator.mesh import Mesh3d
 class LinearAcoustics:
     def __init__(self, mesh: Mesh3d):
         self.mesh = mesh
-        num_cells = mesh.num_cells
-        num_faces = mesh.reference_element.num_faces
-        nodes_per_cell = mesh.reference_element.nodes_per_cell
-        nodes_per_face = mesh.reference_element.nodes_per_face
+        #num_cells = mesh.num_cells
+        #num_faces = mesh.reference_element.num_faces
+        #nodes_per_cell = mesh.reference_element.nodes_per_cell
+        #nodes_per_face = mesh.reference_element.nodes_per_face
         # define pressure and velocity fields over global nodes
-        self.u = np.zeros((nodes_per_cell, num_cells)) # x component of velocity field 
-        self.v = np.zeros((nodes_per_cell, num_cells)) # y component of velocity field
-        self.w = np.zeros((nodes_per_cell, num_cells)) # z component of velocity field
-        self.p = np.zeros((nodes_per_cell, num_cells)) # pressure field 
-        # define jumps in fields across faces nodes
-        self.du = np.zeros((nodes_per_face * num_faces, num_cells))
-        self.dv = np.zeros((nodes_per_face * num_faces, num_cells))
-        self.dw = np.zeros((nodes_per_face * num_faces, num_cells))
-        self.dp = np.zeros((nodes_per_face * num_faces, num_cells))
+        #self.u = np.zeros((nodes_per_cell, num_cells)) # x component of velocity field 
+        #self.v = np.zeros((nodes_per_cell, num_cells)) # y component of velocity field
+        #self.w = np.zeros((nodes_per_cell, num_cells)) # z component of velocity field
+        #self.p = np.zeros((nodes_per_cell, num_cells)) # pressure field 
+        ## define jumps in fields across faces nodes
+        #self.du = np.zeros((nodes_per_face * num_faces, num_cells))
+        #self.dv = np.zeros((nodes_per_face * num_faces, num_cells))
+        #self.dw = np.zeros((nodes_per_face * num_faces, num_cells))
+        #self.dp = np.zeros((nodes_per_face * num_faces, num_cells))
         self.alpha = 1  # upwinding factor
         self.set_initial_conditions()
 
-    def set_initial_conditions(self, kind="gaussian", center=(0.51, 0.52, 0.49), sigma=0.1, wavelength=1):
+    def set_initial_conditions(self, kind="gaussian", center=(0.5, 0.5, 0.5), sigma=0.01, wavelength=1):
         """Set initial conditions for testing the wave propagation."""
         x = self.mesh.x
         y = self.mesh.y
         z = self.mesh.z
         
+        num_cells = self.mesh.num_cells
+        nodes_per_cell = self.mesh.reference_element.nodes_per_cell
+
         if kind == "gaussian":
             # Gaussian pulse centered at (x0, y0, z0)
             x0, y0, z0 = center
-            #self.p = np.exp(-((x - x0)**2 + (y - y0)**2 + (z - z0)**2) / (2 * sigma**2))
+            # define pressure and velocity fields over global nodes
+            self.p = np.zeros((nodes_per_cell,  num_cells)) # pressure field 
             self.p = np.exp(-((x - x0)**2 + (y - y0)**2 + (z - z0)**2) / (2 * sigma**2))
+            #self.p[[3,4,5],8217] = 1
 
-            # Normalize so max amplitude is 1
-            #self.p /= np.max(self.p)
-
-        elif kind == "sine":
-            # Plane wave in the x-direction
-            k = 2 * np.pi / wavelength
-            self.p = np.sin(k * x)
-
-        elif kind == "fourier":
-            nx, ny, nz = 0.1, 0.1, 0.1
-            # Fourier resonant mode in a cubic cavity
-            self.p = np.sin(nx * np.pi * x) * np.sin(ny * np.pi * y) * np.sin(nz * np.pi * z)
-            
+        elif kind == "wall":
+            # pressure plane wave in the x-direction
+            x0, y0, z0 = center
+            width = 0.001
+            x[abs(x-x0) > width] = 0
+            self.p = np.zeros((nodes_per_cell,  num_cells)) # pressure field 
+            self.p[x > 0] = 0.1
+ 
+        self.u = np.zeros_like(self.p)
+        self.v = np.zeros_like(self.p)
+        self.w = np.zeros_like(self.p)           
 
     def compute_rhs(self):
         self._compute_jump_along_normal()
@@ -70,13 +73,13 @@ class LinearAcoustics:
         # Apply reflective conditions: u+ = -u-, p+ = p-
         boundary_face_node_indices = self.mesh.boundary_face_node_indices
         boundary_node_indices = self.mesh.boundary_node_indices
+
         # Normal velocity reverses sign: u+ = -u-
-        self.du[boundary_face_node_indices] = -2 * np.ravel(self.u, order='F')[boundary_node_indices]
-        self.dv[boundary_face_node_indices] = -2 * np.ravel(self.v, order='F')[boundary_node_indices]
-        self.dw[boundary_face_node_indices] = -2 * np.ravel(self.w, order='F')[boundary_node_indices]
+        self.du[boundary_face_node_indices] = np.ravel(self.u, order='F')[boundary_node_indices] - 2*np.ravel(self.u, order='F')[boundary_node_indices]*self.mesh.nx.ravel(order='F')[boundary_face_node_indices]
+        self.dv[boundary_face_node_indices] = np.ravel(self.v, order='F')[boundary_node_indices] - 2*np.ravel(self.v, order='F')[boundary_node_indices]*self.mesh.ny.ravel(order='F')[boundary_face_node_indices]
+        self.dw[boundary_face_node_indices] = np.ravel(self.w, order='F')[boundary_node_indices] - 2*np.ravel(self.w, order='F')[boundary_node_indices]*self.mesh.nz.ravel(order='F')[boundary_face_node_indices]
         # Pressure remains unchanged: p+ = p-
         self.dp[boundary_face_node_indices] = 0
-
 
     def _compute_flux(self):
         # spatial derivative matrices
@@ -128,23 +131,3 @@ class LinearAcoustics:
         self.rhs_v = -dpdy + lift @ (face_scale * flux_v / 2)
         self.rhs_w = -dpdz + lift @ (face_scale * flux_w / 2)
         self.rhs_p = -(dudx + dvdy + dwdz) + lift @ (face_scale * flux_p / 2)
-
-
-if __name__ == "__main__":
-    import sys
-    from wave_simulator.finite_elements import LagrangeElement
-    from wave_simulator.visualizing import *
-
-    if len(sys.argv) > 1:
-        mesh_file = sys.argv[1]
-    else:
-        mesh_file = "./inputs/meshes/simple.msh"
-    
-    dim = 3
-    n = 3
-    mesh = mesh3d(mesh_file, LagrangeElement(dim,n))
-    Physics = LinearAcoustics(mesh)
-    Physics.compute_rhs()
-    breakpoint()
-
-    pass
