@@ -294,12 +294,13 @@ def plot_solution(plotter, mesh, solution):
     #solution_values[non_boundary_indices] = 0
 
     #solution_values[mesh.boundary_node_indices] = 0
-    solution_values[interior_node_indices] = (solution_values[interior_node_indices] + \
-                                               solution_values[exterior_node_indices]) / 2 
+    #solution_values[interior_node_indices] = (solution_values[interior_node_indices] + \
+    #                                           solution_values[exterior_node_indices]) / 2 
+    solution_values[exterior_node_indices]=0
 
     # Compute opacity: fully opaque (1) if value is 0, otherwise scaled by |value|
     opacity_values = np.abs(solution_values)  # Ranges from 0 to 1
-    
+   
     # Add the points to the plot with colors and opacity
     plotter.add_points(
         points_to_plot,
@@ -307,7 +308,7 @@ def plot_solution(plotter, mesh, solution):
         cmap="viridis",  # Use any colormap you prefer
         #clim=(-0.5, 0.5),  # Fix the color bounds
         opacity=opacity_values,#'linear',#0.001,#opacity_values,  # Set per-point opacity
-        point_size=20,
+        point_size=10,
         render_points_as_spheres=True
     )
 

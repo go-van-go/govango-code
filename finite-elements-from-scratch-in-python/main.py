@@ -36,8 +36,8 @@ time_stepper = LowStorageRungeKutta(physics, t_initial, t_final)
 save = True
 interactive = True
 visualize_start = 0
-skips_between_interactive_visualization = 10
-skips_between_saves = 1
+skips_between_interactive_visualization = 300
+skips_between_saves = 10
 
 # what to visualize
 elements=[]
@@ -51,7 +51,7 @@ mesh_boundary=False
 
 while time_stepper.t < time_stepper.t_final:
     # solution visualization (changes every time step)
-    solution = time_stepper.physics.p # + physics.v + physics.w
+    solution = time_stepper.physics.u # + physics.v + physics.w
     #solution = np.array([])
     #average_solution=time_stepper.physics.u
     average_solution= np.array([])
@@ -93,7 +93,7 @@ while time_stepper.t < time_stepper.t_final:
     time_stepper.advance_time_step()
 
     print(f"max solution: {np.max(solution)},   min:{np.min(solution)}")
-    print(f"max dp: {np.max(time_stepper.physics.dp)},   min:{np.min(time_stepper.physics.dp)}")
+    #print(f"max dp: {np.max(time_stepper.physics.dp)},   min:{np.min(time_stepper.physics.dp)}")
 
 
     # Save the self instance to a file
