@@ -44,10 +44,7 @@ class LowStorageRungeKutta:
         self.dt = (self.t_final / num_time_steps)
 
     def advance_time_step(self):
-        #u = self.physics.u
-        #v = self.physics.v
-        #w = self.physics.w
-        #p = self.physics.p
+        """advance forward in time by dt"""
         dt = self.dt
 
         for i in range(5):  # inner multi-stage Runge-Kutta loop
@@ -63,16 +60,6 @@ class LowStorageRungeKutta:
             self.res_p = self.rk4a[i] * self.res_p + dt * rhs_p
             self.physics.p = self.physics.p + self.rk4b[i] * self.res_p
 
-        #self.physics.u = u
-        #self.physics.v = v
-        #self.physics.w = w
-        #self.physics.p = p
-
         self.t += self.dt  # Increment time
         self.current_time_step += 1
         print(self.current_time_step)
-
-
-if __name__ == "__main__":
-    pass
-

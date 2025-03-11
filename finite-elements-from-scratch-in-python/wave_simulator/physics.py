@@ -20,9 +20,11 @@ class LinearAcoustics:
         #self.dw = np.zeros((nodes_per_face * num_faces, num_cells))
         #self.dp = np.zeros((nodes_per_face * num_faces, num_cells))
         self.alpha = 1  # upwinding factor
+        self.density = 1.2 # kg/m^3
+        self.speed = 343 # m/s
         self.set_initial_conditions()
 
-    def set_initial_conditions(self, kind="gaussian", center=(0.5, 0.5, 0.5), sigma=0.01, wavelength=1):
+    def set_initial_conditions(self, kind="gaussian", center=(0.5, 0.5, 0.5), sigma=0.1, wavelength=1):
         """Set initial conditions for testing the wave propagation."""
         x = self.mesh.x
         y = self.mesh.y
@@ -30,26 +32,40 @@ class LinearAcoustics:
         
         num_cells = self.mesh.num_cells
         nodes_per_cell = self.mesh.reference_element.nodes_per_cell
+ 
+        self.u = np.zeros((nodes_per_cell,  num_cells)) # v_x field 
+        self.v = np.zeros((nodes_per_cell,  num_cells)) # v_y field 
+        self.w = np.zeros((nodes_per_cell,  num_cells)) # v_z field 
+        self.p = np.zeros((nodes_per_cell,  num_cells)) # pressure field 
 
         if kind == "gaussian":
             # Gaussian pulse centered at (x0, y0, z0)
             x0, y0, z0 = center
             # define pressure and velocity fields over global nodes
-            self.p = np.zeros((nodes_per_cell,  num_cells)) # pressure field 
             self.p = np.exp(-((x - x0)**2 + (y - y0)**2 + (z - z0)**2) / (2 * sigma**2))
-            #self.p[[3,4,5],8217] = 1
 
         elif kind == "wall":
             # pressure plane wave in the x-direction
-            x0, y0, z0 = center
-            width = 0.001
-            x[abs(x-x0) > width] = 0
-            self.p = np.zeros((nodes_per_cell,  num_cells)) # pressure field 
-            self.p[x > 0] = 0.1
- 
-        self.u = np.zeros_like(self.p)
-        self.v = np.zeros_like(self.p)
-        self.w = np.zeros_like(self.p)           
+            x0 = 0.9
+            y0 = 0.5
+            z0 = 0.5
+            width = 1
+            #x[abs(x-x0) > width] = 0
+            #y[abs(y-y0) > width] = 0
+            #z[abs(z-z0) > width] = 0
+            #z[abs(x-z0) > width] = 0
+            #z[abs(y-z0) > width] = 0
+            #self.u[abs(x-x0) < width] = 0.1
+            #self.p[(abs(x - x0) < width) & (abs(y - y0) < 0.3) & (abs(z-z0) < 0.3)] = 0.1
+            self.u[(np.abs(x-x0) < width) & (np.abs(y - y0) < 0.2) & (np.abs(z - z0) < 0.2)]=-1
+            self.u = self.u*np.exp(-(x-1)*10) 
+            self.u = self.u*np.exp(-(y-0.5)*10) 
+            self.u = self.u*np.exp(-(z-0)) 
+
+        elif kind == "mode":
+            self.p = np.sin(2*np.pi * x) + np.sin(2*np.pi *y) + np.sin(2*np.pi *z)
+            self.p[x**2 + y**2 + z**2 > 1] = 0
+
 
     def compute_rhs(self):
         self._compute_jump_along_normal()
@@ -63,10 +79,10 @@ class LinearAcoustics:
         exterior_values = self.mesh.exterior_face_node_indices
 
         # compute jumps at faces
-        self.du = (np.ravel(self.u, order='F')[exterior_values] - np.ravel(self.u, order='F')[interior_values])
-        self.dv = (np.ravel(self.v, order='F')[exterior_values] - np.ravel(self.v, order='F')[interior_values])
-        self.dw = (np.ravel(self.w, order='F')[exterior_values] - np.ravel(self.w, order='F')[interior_values])
-        self.dp = (np.ravel(self.p, order='F')[exterior_values] - np.ravel(self.p, order='F')[interior_values])
+        self.du = self.u.ravel(order='F')[exterior_values] - self.u.ravel(order='F')[interior_values]
+        self.dv = self.v.ravel(order='F')[exterior_values] - self.v.ravel(order='F')[interior_values]
+        self.dw = self.w.ravel(order='F')[exterior_values] - self.w.ravel(order='F')[interior_values]
+        self.dp = self.p.ravel(order='F')[exterior_values] - self.p.ravel(order='F')[interior_values]
 
 
     def _apply_boundary_conditions(self):
@@ -74,10 +90,23 @@ class LinearAcoustics:
         boundary_face_node_indices = self.mesh.boundary_face_node_indices
         boundary_node_indices = self.mesh.boundary_node_indices
 
+        ndotdu = self.mesh.nx.ravel(order='F')[boundary_face_node_indices] * self.u.ravel(order='F')[boundary_node_indices] + \
+        self.mesh.ny.ravel(order='F')[boundary_face_node_indices] * self.v.ravel(order='F')[boundary_node_indices] + \
+        self.mesh.nz.ravel(order='F')[boundary_face_node_indices] * self.w.ravel(order='F')[boundary_node_indices]
         # Normal velocity reverses sign: u+ = -u-
-        self.du[boundary_face_node_indices] = np.ravel(self.u, order='F')[boundary_node_indices] - 2*np.ravel(self.u, order='F')[boundary_node_indices]*self.mesh.nx.ravel(order='F')[boundary_face_node_indices]
-        self.dv[boundary_face_node_indices] = np.ravel(self.v, order='F')[boundary_node_indices] - 2*np.ravel(self.v, order='F')[boundary_node_indices]*self.mesh.ny.ravel(order='F')[boundary_face_node_indices]
-        self.dw[boundary_face_node_indices] = np.ravel(self.w, order='F')[boundary_node_indices] - 2*np.ravel(self.w, order='F')[boundary_node_indices]*self.mesh.nz.ravel(order='F')[boundary_face_node_indices]
+        #self.du[boundary_face_node_indices] = self.u.ravel(order='F')[boundary_node_indices] - \
+        #    2*self.u.ravel(order='F')[boundary_node_indices]*self.mesh.nx.ravel(order='F')[boundary_face_node_indices]
+        #self.dv[boundary_face_node_indices] = self.v.ravel(order='F')[boundary_node_indices] - \
+        #    2*self.v.ravel(order='F')[boundary_node_indices]*self.mesh.ny.ravel(order='F')[boundary_face_node_indices]
+        #self.dw[boundary_face_node_indices] = self.w.ravel(order='F')[boundary_node_indices] - \
+        #    2*self.w.ravel(order='F')[boundary_node_indices]*self.mesh.nz.ravel(order='F')[boundary_face_node_indices]
+        self.du[boundary_face_node_indices] = self.u.ravel(order='F')[boundary_node_indices] - \
+            2*ndotdu*self.mesh.nx.ravel(order='F')[boundary_face_node_indices]
+        self.dv[boundary_face_node_indices] = self.v.ravel(order='F')[boundary_node_indices] - \
+            2*ndotdu*self.mesh.ny.ravel(order='F')[boundary_face_node_indices]
+        self.dw[boundary_face_node_indices] = self.w.ravel(order='F')[boundary_node_indices] - \
+            2*ndotdu*self.mesh.nz.ravel(order='F')[boundary_face_node_indices]
+
         # Pressure remains unchanged: p+ = p-
         self.dp[boundary_face_node_indices] = 0
 
@@ -119,12 +148,16 @@ class LinearAcoustics:
         
         # Compute normal jump of pressure
         ndotdu = self.mesh.nx * self.du + self.mesh.ny * self.dv + self.mesh.nz * self.dw
-       
+
+        interior_values = self.mesh.interior_face_node_indices
+        exterior_values = self.mesh.exterior_face_node_indices
+        self.dpp = self.p.ravel(order='F')[exterior_values] + self.p.ravel(order='F')[interior_values]
+        self.dpp = self.dpp.reshape((Npf*num_faces, K), order='F')
         # Compute fluxes 
         flux_u = -self.mesh.nx * (self.alpha * ndotdu - self.dp)
         flux_v = -self.mesh.ny * (self.alpha * ndotdu - self.dp)
         flux_w = -self.mesh.nz * (self.alpha * ndotdu - self.dp)
-        flux_p = ndotdu - self.alpha * self.dp
+        flux_p = ndotdu - self.alpha * self.dpp
 
         # Compute right-hand side terms using lifting operation
         self.rhs_u = -dpdx + lift @ (face_scale * flux_u / 2)

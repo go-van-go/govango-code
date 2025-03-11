@@ -67,9 +67,24 @@ def plot_boundary_nodes(plotter, mesh):
     """Plot boundary nodes on the mesh."""
     
     # Extract x, y, z coordinates for the boundary nodes
-    x_coords = mesh.x.flatten(order="F")[mesh.boundary_node_indices]
-    y_coords = mesh.y.flatten(order="F")[mesh.boundary_node_indices]
-    z_coords = mesh.z.flatten(order="F")[mesh.boundary_node_indices]
+    x_coords = mesh.x.ravel(order="F")[mesh.boundary_node_indices]
+    y_coords = mesh.y.ravel(order="F")[mesh.boundary_node_indices]
+    z_coords = mesh.z.ravel(order="F")[mesh.boundary_node_indices]
+    
+    # Stack into boundary nodal points
+    boundary_points_to_plot = np.column_stack((x_coords, y_coords, z_coords))
+    
+    # Add the boundary points to the plot
+    plotter.add_points(boundary_points_to_plot, color="green", point_size=10, render_points_as_spheres=True)
+
+
+def plot_boundary_face_nodes(plotter, mesh):
+    """Plot boundary nodes on the mesh."""
+    
+    # Extract x, y, z coordinates for the boundary nodes
+    x_coords = mesh.nx.ravel(order="F")[mesh.boundary_face_node_indices]
+    y_coords = mesh.ny.ravel(order="F")[mesh.boundary_face_node_indices]
+    z_coords = mesh.nz.ravel(order="F")[mesh.boundary_face_node_indices]
     
     # Stack into boundary nodal points
     boundary_points_to_plot = np.column_stack((x_coords, y_coords, z_coords))
@@ -99,10 +114,10 @@ def plot_boundary_jumps(plotter, mesh, jumps):
         boundary_jumps_to_plot,
         scalars=jump_values,
         cmap="viridis",  # Use any colormap you prefer
-        #clim=(-1, 1),  # Fix the color bounds
+        #clim=(-0.5, 0.5),  # Fix the color bounds
         opacity=opacity_values,  # Set per-point opacity
         point_size=10,
-        render_points_as_spheres=True
+        #render_points_as_spheres=True
     )
 
 
@@ -211,7 +226,7 @@ def plot_normals(plotter, mesh, normals):
         normal_vector_direction = np.column_stack((nx, ny, nz))
         
         # Add normal vectors as arrows
-        plotter.add_arrows(normal_vector_origin, normal_vector_direction, mag=0.05, color='red')
+        plotter.add_arrows(normal_vector_origin, normal_vector_direction, mag=0.1, color='red')
 
 
 def plot_boundary_normals(plotter, mesh):
@@ -270,32 +285,63 @@ def plot_solution(plotter, mesh, solution):
     points_to_plot = np.column_stack((x_coords, y_coords, z_coords))
     
     # Flatten the solution matrix to align with the coordinates
-    solution_values = np.ravel(solution, order='F')
-    # Assuming solution_values is a 1D array
-    all_indices = np.arange(len(solution_values))  # Get all indices of solution_values
-    non_boundary_indices = np.setdiff1d(all_indices, mesh.boundary_node_indices)
+    solution_values = solution.copy()
+    solution_values = np.ravel(solution_values, order='F')
 
+    # index all non boundary indices
+    #all_indices = np.arange(len(solution_values))  # Get all indices of solution_values
+    #non_boundary_indices = np.setdiff1d(all_indices, mesh.boundary_node_indices)
     #solution_values[non_boundary_indices] = 0
+
     #solution_values[mesh.boundary_node_indices] = 0
     solution_values[interior_node_indices] = (solution_values[interior_node_indices] + \
                                                solution_values[exterior_node_indices]) / 2 
-    solution_values[exterior_node_indices] = 0
-    
+
     # Compute opacity: fully opaque (1) if value is 0, otherwise scaled by |value|
     opacity_values = np.abs(solution_values)  # Ranges from 0 to 1
-    #opacity_values[solution_values == 0] = 0  # Ensure zero values are fully opaque
     
     # Add the points to the plot with colors and opacity
     plotter.add_points(
         points_to_plot,
         scalars=solution_values,
         cmap="viridis",  # Use any colormap you prefer
-        #clim=(-1, 1),  # Fix the color bounds
-        opacity=opacity_values,  # Set per-point opacity
-        point_size=10,
+        #clim=(-0.5, 0.5),  # Fix the color bounds
+        opacity=opacity_values,#'linear',#0.001,#opacity_values,  # Set per-point opacity
+        point_size=20,
         render_points_as_spheres=True
     )
 
+def plot_cell_averages(plotter, mesh, average_solution):
+    """
+    Plot cell averages for a given solution.
+    Each cell's average solution value is computed and visualized.
+    """
+    # Compute cell averages
+
+    # Define the step and the maximum value
+    cells = np.zeros(mesh.num_cells * 5, dtype='int')
+    index = 0
+    for i in range(mesh.num_cells * 5):
+        if i % 5 == 0:
+            cells[i] = 4
+        else:
+            cells[i] = index
+            index += 1
+
+    cell_averages = np.mean(average_solution, axis=0)  # Average over nodes in each cell
+    cell_types = np.repeat(np.array([pv.CellType.TETRA]), mesh.num_cells)
+    points = mesh.vertex_coordinates[mesh.cell_to_vertices.ravel()]
+
+    grid = pv.UnstructuredGrid(cells, cell_types, points)
+       
+    # Apply color based on the average value
+    #grid.plot(show_edges=True)
+    plotter.add_mesh(grid,
+                     scalars=cell_averages,
+                     opacity=abs(cell_averages)
+                     )
+
+    
 def plot_mesh_edges(plotter, mesh):
     # Create PyVista UnstructuredGrid for each element
     for cell in range(mesh.num_cells):
@@ -320,9 +366,11 @@ def visualize_mesh(mesh,
                    normals=[],
                    nodes=[],
                    solution= np.array([]),
+                   average_solution= np.array([]),
                    jumps=np.array([]),
                    boundary_jumps=np.array([]),
                    boundary_nodes=False,
+                   boundary_face_nodes=False,
                    boundary_elements=False,
                    boundary_normals=False,
                    mesh_edges=False,
@@ -331,7 +379,7 @@ def visualize_mesh(mesh,
                    save=False):
     """Visualize the mesh with nodes, elements, and normals."""
     # Create a PyVista plotter
-    plotter = pv.Plotter(off_screen=save)
+    plotter = pv.Plotter(off_screen=save, border=True)
 
     # Add mesh cell edges
     if mesh_edges:
@@ -348,6 +396,10 @@ def visualize_mesh(mesh,
     # Plot boundary nodes if requested
     if boundary_nodes:
         plot_boundary_nodes(plotter, mesh)
+
+    # Plot boundary normals
+    if boundary_face_nodes:
+        plot_boundary_face_nodes(plotter, mesh)
 
     # Plot boundary faces if requested
     if boundary_elements:
@@ -377,7 +429,13 @@ def visualize_mesh(mesh,
     if solution.any():
         plot_solution(plotter, mesh, solution)
 
-    plotter.show_grid()
+    # plot solution
+    if average_solution.any():
+        plot_cell_averages(plotter, mesh, average_solution)
+
+    plotter.show_grid(bounds=[np.min(mesh.x), np.max(mesh.x),
+                              np.min(mesh.y), np.max(mesh.y),
+                              np.min(mesh.z), np.max(mesh.z)])
 
     # Export and show the plot
     if save:
