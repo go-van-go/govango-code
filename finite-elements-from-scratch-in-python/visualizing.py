@@ -9,51 +9,65 @@ import pickle
 import numpy as np
 from numpy import nan
 import pyvista as pv
-from scipy.spatial import Delaunay
-from scipy.interpolate import LinearNDInterpolator
+from wave_simulator.visualizing import *
 
+# Specify the path to the saved pickle file
+#file_path = f'/home/lj/Desktop/3d_data/sim_data_00008300.pkl'
+file_path = f'./outputs/velocity3d_data/sim_data_00007300.pkl'
+#
+## Open the file in read-binary mode and load the object
+with open(file_path, 'rb') as file:
+    physics = pickle.load(file)
+#
 
-# Load the saved instance
-with open('./outputs/sim_data_00000100.pkl', 'rb') as file:
-    data = pickle.load(file)
+# create mesh
+mesh = physics.mesh
 
-cell = 2
-solution = data.physics.p[:,cell]
-x = data.physics.mesh.x[:,cell]
-y = data.physics.mesh.y[:,cell]
-z = data.physics.mesh.z[:,cell]
+# when and how to visualize
+save = True
+interactive = True
+interactive_save = False 
+visualize_start = 0
+skips_between_interactive_visualization = 100
+skips_between_interactive_saves= 100
+skips_between_saves = 5
 
-vertices = data.physics.mesh.cell_to_vertices[cell]
-x_vertices = data.physics.mesh.x_vertex[vertices]
-y_vertices = data.physics.mesh.y_vertex[vertices]
-z_vertices = data.physics.mesh.z_vertex[vertices]
+# what to visualize
+elements=[]
+normals = elements
+boundary_nodes=False
+boundary_normals=False
+boundary_face_nodes=False
+mesh_edges=False
+mesh_boundary=False
+    
+# Specify the path to the saved pickle file
+#file_path = f'./outputs/3d_data/sim_data_00005900.pkl'
+#
+## Open the file in read-binary mode and load the object
+#with open(file_path, 'rb') as file:
+#    physics = pickle.load(file)
+#
+#time_stepper = LowStorageRungeKutta(physics, 0.65407737, t_final)
+#time_stepper.current_time_step = 5900
+#average_solution= np.array([])
+average_solution= physics.p 
+jumps=np.array([])
+boundary_jumps=np.array([])
 
-# Define tetrahedral domain
-tetra_points = np.vstack((x_vertices, y_vertices, z_vertices)).T
-tetra = Delaunay(tetra_points)
+#solution = physics.p # + physics.v + physics.w
+solution = np.array([]) # + physics.v + physics.w
+visualize_mesh(mesh,
+               jumps=jumps,
+               normals=normals,
+               solution=solution,
+               average_solution=average_solution,
+               elements=elements,
+               boundary_nodes=boundary_nodes,
+               boundary_face_nodes=boundary_face_nodes,
+               boundary_normals=boundary_normals,
+               boundary_jumps=boundary_jumps,
+               mesh_edges=mesh_edges,
+               mesh_boundary=mesh_boundary,
+               save=False)
 
-# Interpolator
-interp = LinearNDInterpolator(list(zip(x, y, z)), solution)
-
-# Generate a grid inside the tetrahedron
-num_points = 30
-xg, yg, zg = np.meshgrid(
-    np.linspace(x_vertices.min(), x_vertices.max(), num_points),
-    np.linspace(y_vertices.min(), y_vertices.max(), num_points),
-    np.linspace(z_vertices.min(), z_vertices.max(), num_points)
-)
-
-grid_points = np.vstack((xg.ravel(), yg.ravel(), zg.ravel())).T
-inside = tetra.find_simplex(grid_points) >= 0  # Check if inside tetrahedron
-valid_points = grid_points[inside]
-values = interp(valid_points[:, 0], valid_points[:, 1], valid_points[:, 2])
-
-# Create PyVista Unstructured Grid
-cloud = pv.PolyData(valid_points)
-cloud["solution"] = values
-
-# Visualization
-plotter = pv.Plotter()
-plotter.add_mesh(cloud, scalars="solution", cmap="viridis", point_size=5)
-plotter.add_mesh(pv.PolyData(tetra_points), color="red", point_size=10, render_points_as_spheres=True)
-plotter.show()

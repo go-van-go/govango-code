@@ -1,3 +1,4 @@
+import pickle
 from wave_simulator.finite_elements import LagrangeElement
 from wave_simulator.reference_element_operators import ReferenceElementOperators
 from wave_simulator.mesh import Mesh3d 
@@ -7,12 +8,12 @@ from wave_simulator.visualizing import *
 
 # create finite element
 dimension = 3
-polynomial_order = 10
+polynomial_order = 6
 lagrange_element = LagrangeElement(dimension, polynomial_order)
-
 
 # select mesh
 #mesh_file = "./inputs/meshes/simple.msh"
+#mesh_file = "./inputs/meshes/10.msh"
 mesh_file = "./inputs/meshes/0.2.msh"
 #mesh_file = "./inputs/meshes/0.1.msh"
 #mesh_file = "./inputs/meshes/0.05.msh"
@@ -23,21 +24,22 @@ mesh_file = "./inputs/meshes/0.2.msh"
 
 # create mesh
 mesh = Mesh3d(mesh_file, lagrange_element)
-
 # select physics
 physics = LinearAcoustics(mesh)
 
 # select time stepping method
 t_initial = 0
-t_final = 0.01
+t_final = 0.1
 time_stepper = LowStorageRungeKutta(physics, t_initial, t_final)
 
 # when and how to visualize
 save = True
 interactive = True
+interactive_save = False 
 visualize_start = 0
-skips_between_interactive_visualization = 300
-skips_between_saves = 10
+skips_between_interactive_visualization = 100
+skips_between_interactive_saves= 100
+skips_between_saves = 5
 
 # what to visualize
 elements=[]
@@ -48,12 +50,21 @@ boundary_face_nodes=False
 mesh_edges=False
 mesh_boundary=False
     
+# Specify the path to the saved pickle file
+#file_path = f'./outputs/3d_data/sim_data_00005900.pkl'
+#
+## Open the file in read-binary mode and load the object
+#with open(file_path, 'rb') as file:
+#    physics = pickle.load(file)
+#
+#time_stepper = LowStorageRungeKutta(physics, 0.65407737, t_final)
+#time_stepper.current_time_step = 5900
 
 while time_stepper.t < time_stepper.t_final:
     # solution visualization (changes every time step)
-    solution = time_stepper.physics.u # + physics.v + physics.w
+    solution = time_stepper.physics.p # + physics.v + physics.w
     #solution = np.array([])
-    #average_solution=time_stepper.physics.u
+    #average_solution=time_stepper.physics.p
     average_solution= np.array([])
     jumps=np.array([])
     boundary_jumps=np.array([])
@@ -90,13 +101,13 @@ while time_stepper.t < time_stepper.t_final:
                            mesh_boundary=mesh_boundary,
                            save=False)
 
+    if time_stepper.current_time_step % skips_between_interactive_saves == 0 and interactive_save:
+        # Save the self instance to a file
+        with open(f'./outputs/3d_data/sim_data_{time_stepper.current_time_step:0>8}.pkl', 'wb') as file:
+            pickle.dump(time_stepper.physics, file)
+
     time_stepper.advance_time_step()
 
     print(f"max solution: {np.max(solution)},   min:{np.min(solution)}")
     #print(f"max dp: {np.max(time_stepper.physics.dp)},   min:{np.min(time_stepper.physics.dp)}")
-
-
-    # Save the self instance to a file
-    #with open(f'./outputs/sim_data_{self.current_time_step:0>8}.pkl', 'wb') as file:
-    #    pickle.dump(self, file)
 

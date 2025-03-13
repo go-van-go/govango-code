@@ -37,7 +37,7 @@ class LowStorageRungeKutta:
     def _compute_time_step_size(self):
         n = self.physics.mesh.reference_element.n
         surface_to_volume_jacobian = self.physics.mesh.surface_to_volume_jacobian
-        dt = 1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n)
+        dt = 1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n) 
         # correct dt for integer # of time steps
         num_time_steps = int(np.ceil(self.t_final/ dt))
         print(f"time step size: {dt}")

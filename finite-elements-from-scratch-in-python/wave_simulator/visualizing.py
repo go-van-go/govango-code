@@ -437,19 +437,13 @@ def visualize_mesh(mesh,
     plotter.show_grid(bounds=[np.min(mesh.x), np.max(mesh.x),
                               np.min(mesh.y), np.max(mesh.y),
                               np.min(mesh.z), np.max(mesh.z)])
+    camera_position = [(2.50, 3.50, 1.50), (0.1, 0, 0.1), (0, 0, 1)]  # Example values
+    plotter.camera_position = camera_position
 
     # Export and show the plot
     if save:
-        plotter.screenshot(f"./outputs/{file_name}")
+        plotter.screenshot(f"./outputs/images/{file_name}")
     else:
         plotter.show()
 
     plotter.close()  
-
-
-if __name__ == "__main__":
-    from simulator import Simulator
-    from mesh import Mesh3d
-    from finite_elements import LagrangeElement
-    from reference_element_operators import ReferenceElementOperators
-    breakpoint()
