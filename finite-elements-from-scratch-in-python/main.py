@@ -112,6 +112,6 @@ while time_stepper.t < time_stepper.t_final:
     time_stepper.advance_time_step_rk_with_force_term()
 
     print(f"t = {time_stepper.t},  timestep = {time_stepper.current_time_step}")
-    #print(f"t = {time_stepper.t}  max solution: {np.max(solution)},   min:{np.min(solution)}")
+    #print(f"max solution: {np.max(solution)},   min:{np.min(solution)}")
     #print(f"max dp: {np.max(time_stepper.physics.dp)},   min:{np.min(time_stepper.physics.dp)}")
 
