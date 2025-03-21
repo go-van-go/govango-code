@@ -252,26 +252,6 @@ def plot_boundary_normals(plotter, mesh):
     plotter.add_arrows(normal_vector_origin, normal_vector_direction, mag=0.05, color='red')
  
 
-       # for elem in norms:
-       #     x_origin = mesh.x[:, elem][face_node_indices].flatten()
-       #     y_origin = mesh.y[:, elem][face_node_indices].flatten()
-       #     z_origin = mesh.z[:, elem][face_node_indices].flatten()
-       #     
-       #     # Stack into origin points
-       #     normal_vector_origin = np.column_stack((x_origin, y_origin, z_origin))
-       #     
-       #     # Extract normal vectors for the given element
-       #     nx = mesh.nx[:, elem]
-       #     ny = mesh.ny[:, elem]
-       #     nz = mesh.nz[:, elem]
-       #     
-       #     # Stack into normal vectors
-       #     normal_vector_direction = np.column_stack((nx, ny, nz))
-       #     
-       #     # Add normal vectors as arrows
-       #     plotter.add_arrows(normal_vector_origin, normal_vector_direction, mag=0.1, color='red')
-
-
 def plot_solution(plotter, mesh, solution):
     """Plot nodes on the mesh with colors and opacity based on solution values."""
     # Extract x, y, z coordinates for the nodes
@@ -342,6 +322,30 @@ def plot_cell_averages(plotter, mesh, average_solution):
                      opacity=abs(cell_averages)
                      )
 
+def plot_wave_speed(plotter, mesh, wave_speed):
+    # Define the step and the maximum value
+    cells = np.zeros(mesh.num_cells * 5, dtype='int')
+    index = 0
+    for i in range(mesh.num_cells * 5):
+        if i % 5 == 0:
+            cells[i] = 4
+        else:
+            cells[i] = index
+            index += 1
+
+    wave_speed = wave_speed[0,:]
+    cell_types = np.repeat(np.array([pv.CellType.TETRA]), mesh.num_cells)
+    points = mesh.vertex_coordinates[mesh.cell_to_vertices.ravel()]
+
+    grid = pv.UnstructuredGrid(cells, cell_types, points)
+       
+    # Apply color based on the average value
+    #grid.plot(show_edges=True)
+    plotter.add_mesh(grid,
+                     scalars=wave_speed,
+                     opacity=0.005#'linear'#abs(wave_speed)
+                     )
+
     
 def plot_mesh_edges(plotter, mesh):
     # Create PyVista UnstructuredGrid for each element
@@ -368,6 +372,7 @@ def visualize_mesh(mesh,
                    nodes=[],
                    solution= np.array([]),
                    average_solution= np.array([]),
+                   wave_speed=np.array([]),
                    jumps=np.array([]),
                    boundary_jumps=np.array([]),
                    boundary_nodes=False,
@@ -418,6 +423,10 @@ def visualize_mesh(mesh,
     if boundary_normals:
         plot_boundary_normals(plotter, mesh)
 
+    # Plot wave speed 
+    if wave_speed.any():
+        plot_wave_speed(plotter, mesh, wave_speed)
+
     # plot jumps 
     if jumps.any():
         plot_jumps(plotter, mesh, jumps)
@@ -437,7 +446,8 @@ def visualize_mesh(mesh,
     plotter.show_grid(bounds=[np.min(mesh.x), np.max(mesh.x),
                               np.min(mesh.y), np.max(mesh.y),
                               np.min(mesh.z), np.max(mesh.z)])
-    camera_position = [(2.50, 3.50, 1.50), (0.1, 0, 0.1), (0, 0, 1)]  # Example values
+    camera_position = [(0.50, 3.50, 0.50), (0.5, 0, 0.5), (0, 0, 1)]  # Example values
+    #camera_position = [(250, 350, 150), (0.1, 0, 0.1), (0, 0, 1)]  # Example values
     plotter.camera_position = camera_position
 
     # Export and show the plot

@@ -41,8 +41,10 @@ class Mesh3d:
        # self.dtdz = None
        # self.jacobians = {}
        # #self.determinants = {}
+       
         
         self._extract_mesh_info()
+        self._get_smallest_diameter()
         self._build_connectivityMatricies()
         #self._compute_gmsh_jacobians()
         self._get_mapped_nodal_cordinates()
@@ -73,6 +75,13 @@ class Mesh3d:
         node_tags, _, _ = gmsh.model.mesh.getNodesByElementType(4) 
         self.num_cells = int(len(node_tags)/4) 
         self.cell_to_vertices = node_tags.reshape(-1, 4).astype(int) - 1
+
+
+    def _get_smallest_diameter(self):
+        _, eleTags , _ = gmsh.model.mesh.getElements(dim=3)
+        radii = gmsh.model.mesh.getElementQualities(eleTags[0], "innerRadius")
+        self.smallest_diameter = np.min(radii)
+        
 
     def _build_connectivityMatricies(self):
         """tetrahedral face connect algorithm from Toby Isaac"""

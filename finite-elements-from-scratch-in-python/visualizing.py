@@ -13,24 +13,14 @@ from wave_simulator.visualizing import *
 
 # Specify the path to the saved pickle file
 #file_path = f'/home/lj/Desktop/3d_data/sim_data_00008300.pkl'
-file_path = f'./outputs/velocity3d_data/sim_data_00007300.pkl'
+file_path = f'./outputs/3d_data/sim_data_00001500.pkl'
 #
 ## Open the file in read-binary mode and load the object
 with open(file_path, 'rb') as file:
     physics = pickle.load(file)
-#
 
 # create mesh
 mesh = physics.mesh
-
-# when and how to visualize
-save = True
-interactive = True
-interactive_save = False 
-visualize_start = 0
-skips_between_interactive_visualization = 100
-skips_between_interactive_saves= 100
-skips_between_saves = 5
 
 # what to visualize
 elements=[]
@@ -40,18 +30,10 @@ boundary_normals=False
 boundary_face_nodes=False
 mesh_edges=False
 mesh_boundary=False
-    
-# Specify the path to the saved pickle file
-#file_path = f'./outputs/3d_data/sim_data_00005900.pkl'
-#
-## Open the file in read-binary mode and load the object
-#with open(file_path, 'rb') as file:
-#    physics = pickle.load(file)
-#
-#time_stepper = LowStorageRungeKutta(physics, 0.65407737, t_final)
-#time_stepper.current_time_step = 5900
-#average_solution= np.array([])
+#wave_speed=physics.speed
+wave_speed=np.array([])
 average_solution= physics.p 
+#average_solution=np.array([]) 
 jumps=np.array([])
 boundary_jumps=np.array([])
 
@@ -62,6 +44,7 @@ visualize_mesh(mesh,
                normals=normals,
                solution=solution,
                average_solution=average_solution,
+               wave_speed=wave_speed,
                elements=elements,
                boundary_nodes=boundary_nodes,
                boundary_face_nodes=boundary_face_nodes,

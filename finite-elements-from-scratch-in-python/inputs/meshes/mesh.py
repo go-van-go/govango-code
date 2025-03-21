@@ -2,11 +2,11 @@ import gmsh
 
 gmsh.initialize()
 gmsh.model.add("cube")
-gmsh.model.occ.addBox(0, 0, 0, 100, 100, 100)
+gmsh.model.occ.addBox(0, 0, 0, 1, 1, 1)
 gmsh.model.occ.synchronize()
 
 # Set uniform mesh size
-max_size = 10
+max_size = 0.025
 #gmsh.option.setNumber("Mesh.MeshSizeMin", 0.010)
 gmsh.option.setNumber("Mesh.MeshSizeMax", max_size)
 

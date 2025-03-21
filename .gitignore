@@ -4,3 +4,4 @@ __pycache__/
 markov-chain-monte-carlo/mcmc_images/
 .pytest_cache/
 outputs/
+finite-elements-from-scratch-in-python/inputs/meshes/

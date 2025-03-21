@@ -21,11 +21,19 @@ class LinearAcoustics:
         #self.dv = np.zeros((nodes_per_face * num_faces, num_cells))
         #self.dw = np.zeros((nodes_per_face * num_faces, num_cells))
         #self.dp = np.zeros((nodes_per_face * num_faces, num_cells))
-        self.density = np.ones((nodes_per_cell, num_cells)) # * 1.2 # kg/m^3 density at each node
+        self.density = np.ones((nodes_per_cell, num_cells)) * 1 # kg/m^3 density at each node
         self.speed = np.ones((nodes_per_cell, num_cells)) * 1 # m/s wavespeed at each node
+        self.speed[(np.abs(self.mesh.x -0.5) < 0.2) & (np.abs(self.mesh.y - 0.5) < 0.2) & (np.abs(self.mesh.z -0.5) < 0.2)] = 10
+        #self.speed[self.mesh.z < 0.3] = 1
+        # Calculate the mean of each column
+        average_cell_speed = np.mean(self.speed, axis=0)
+        # Replace each column with its mean value
+        self.speed = np.tile(average_cell_speed, (self.speed.shape[0], 1))
+        self.density = self.speed
+        self.max_speed = np.max(self.speed)
         self.set_initial_conditions()
 
-    def set_initial_conditions(self, kind="gaussian", center=(0.5, 0.5, 0.5), sigma=0.08, wavelength=1):
+    def set_initial_conditions(self, kind="zero", center=(0.80, 0.50, 0.50), sigma=0.05, wavelength=1):
         """Set initial conditions for testing the wave propagation."""
         x = self.mesh.x
         y = self.mesh.y
@@ -43,33 +51,11 @@ class LinearAcoustics:
             # Gaussian pulse centered at (x0, y0, z0)
             x0, y0, z0 = center
             # define pressure and velocity fields over global nodes
-            self.p = np.exp(-((x - x0)**2 + (y - y0)**2 + (z - z0)**2) / (2 * sigma**2))
-
-        elif kind == "wall":
-            # pressure plane wave in the x-direction
-            x0 = 0.0
-            y0 = 0.0
-            z0 = 0.0
-            width = 0.02
-            #x[abs(x-x0) > width] = 0
-            #y[abs(y-y0) > width] = 0
-            #z[abs(z-z0) > width] = 0
-            #z[abs(x-z0) > width] = 0
-            #z[abs(y-z0) > width] = 0
-            #self.u[abs(x-x0) < width] = 0.1
-            #self.p[(abs(x - x0) < width) & (abs(y - y0) < 0.3) & (abs(z-z0) < 0.3)] = 0.1
-            self.u[(np.abs(x-x0) < 1e-6)] = 1# & (np.abs(y - y0) < 0.99) & (np.abs(z - z0) < 0.99)] = 1
-            #self.u = self.u*np.exp(-(x-1)*10) 
-            #self.u = self.u*np.exp(-(y-0.5)**2) 
-            #self.u = self.u*np.exp(-(z-0.5)**2) 
-
+            self.p = 10*np.exp(-((x - x0)**2 + (y - y0)**2 + (z - z0)**2) / (2 * sigma**2))
         elif kind == "mode":
             self.p = np.sin(2*np.pi * x) + np.sin(2*np.pi *y) + np.sin(2*np.pi *z)
             self.p[x**2 + y**2 + z**2 > 1] = 0
 
-    def compute_rhs(self):
-        self._compute_flux()
-        return self.rhs_u, self.rhs_v, self.rhs_w, self.rhs_p
 
     def _reshape_to_rectangular(self, du, dv, dw, dp):
         # reshape jump matrices
@@ -81,6 +67,20 @@ class LinearAcoustics:
         dw = dw.reshape((Npf*num_faces, K), order='F')
         dp = dp.reshape((Npf*num_faces, K), order='F')
         return du, dv, dw, dp
+
+
+    def _get_material_face_values(self):
+        # indices for interior and exterior values
+        interior_values = self.mesh.interior_face_node_indices
+        exterior_values = self.mesh.exterior_face_node_indices
+        # get interior values on cells
+        rho_m = self.density.ravel(order='F')[interior_values]
+        rho_p = self.density.ravel(order='F')[interior_values]
+        c_p = self.speed.ravel(order='F')[exterior_values]
+        c_m = self.speed.ravel(order='F')[exterior_values]
+        rho_p, rho_m, c_p, c_m = self._reshape_to_rectangular(rho_p, rho_m, c_p, c_m)
+        return rho_p, rho_m, c_p, c_m
+
 
     def _apply_boundary_conditions(self):
         # indices for interior and exterior values
@@ -120,11 +120,19 @@ class LinearAcoustics:
         # reshape for matrix-matrix multiplication
         u_m, v_m, w_m, p_m = self._reshape_to_rectangular(u_m, v_m, w_m, p_m)
         u_p, v_p, w_p, p_p = self._reshape_to_rectangular(u_p, v_p, w_p, p_p)
-
         return u_p, v_p, w_p, p_p, u_m, v_m, w_m, p_m 
 
 
-    def _compute_flux(self):
+    def compute_rhs(self, u=None, v=None, w=None, p=None):
+        if u is None:
+            u = self.u
+        if v is None:
+            v = self.v
+        if w is None:
+            w = self.w
+        if p is None:
+            p = self.p
+
         # get material parameters 
         rho = self.density
         c = self.speed
@@ -158,6 +166,9 @@ class LinearAcoustics:
         # apply boundary conditions
         u_p, v_p, w_p, p_p, u_m, v_m, w_m, p_m = self._apply_boundary_conditions()
 
+        # get heterogeneous material matrices
+        rho_p, rho_m, c_p, c_m = self._get_material_face_values()
+
         # compute normal velocity at interior boundary and exterior boundary 
         ndotum = self.mesh.nx * u_m + self.mesh.ny * v_m + self.mesh.nz * w_m
         ndotup = self.mesh.nx * u_p + self.mesh.ny * v_p + self.mesh.nz * w_p
@@ -169,14 +180,26 @@ class LinearAcoustics:
         num_faces = self.mesh.reference_element.num_faces
         Npf = self.mesh.reference_element.nodes_per_face
 
-        flux_u = 0.5 * (self.mesh.nx * ((p_p - p_m) - (ndotup - ndotum)))
-        flux_v = 0.5 * (self.mesh.ny * ((p_p - p_m) - (ndotup - ndotum)))
-        flux_w = 0.5 * (self.mesh.nz * ((p_p - p_m) - (ndotup - ndotum)))
-        flux_p = 0.5 * ((ndotup - ndotum) - (p_p - p_m))
+        #flux_u = 0.5 * (self.mesh.nx * ((p_p - p_m) - (ndotup - ndotum)))
+        #flux_v = 0.5 * (self.mesh.ny * ((p_p - p_m) - (ndotup - ndotum)))
+        #flux_w = 0.5 * (self.mesh.nz * ((p_p - p_m) - (ndotup - ndotum)))
+        #flux_p = 0.5 * ((ndotup - ndotum) - (p_p - p_m))
+        mu = np.maximum(c_p, c_m)
 
+        flux_p = 0.5 * (
+            (rho_p * c_p**2 * u_p - rho_m * c_m**2 * u_m) * self.mesh.nx + \
+            (rho_p * c_p**2 * v_p - rho_m * c_m**2 * v_m) * self.mesh.ny + \
+            (rho_p * c_p**2 * w_p - rho_m * c_m**2 * w_m) * self.mesh.nz - \
+            mu * (p_p - p_m)
+        )
+        flux_u = 0.5 * (self.mesh.nx * ((p_p / rho_p) - (p_m / rho_m) - mu * (ndotup - ndotum)))
+        flux_v = 0.5 * (self.mesh.ny * ((p_p / rho_p) - (p_m / rho_m) - mu * (ndotup - ndotum)))
+        flux_w = 0.5 * (self.mesh.nz * ((p_p / rho_p) - (p_m / rho_m) - mu * (ndotup - ndotum)))
 
         # compute right-hand side terms using lifting operation
         self.rhs_u = -dpdx - lift @ (face_scale * flux_u)
         self.rhs_v = -dpdy - lift @ (face_scale * flux_v)
         self.rhs_w = -dpdz - lift @ (face_scale * flux_w)
         self.rhs_p = -(dudx + dvdy + dwdz) - lift @ (face_scale * flux_p)
+
+        return self.rhs_u, self.rhs_v, self.rhs_w, self.rhs_p,

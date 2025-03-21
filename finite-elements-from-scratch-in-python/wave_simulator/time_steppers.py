@@ -6,8 +6,8 @@ from wave_simulator.visualizing import visualize_mesh
 
 class LowStorageRungeKutta:
     def __init__(self, physics: LinearAcoustics, t_initial, t_final):
-        self.t_initial = 0
-        self.t_final = 10
+        self.t_initial = t_initial
+        self.t_final = t_final
         self.t = t_initial
         self.current_time_step = 0
         self.physics = physics
@@ -34,14 +34,27 @@ class LowStorageRungeKutta:
 
         self._compute_time_step_size()
 
-    def _compute_time_step_size(self):
+    def old_compute_time_step_size(self):
         n = self.physics.mesh.reference_element.n
         surface_to_volume_jacobian = self.physics.mesh.surface_to_volume_jacobian
-        dt = 1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n) 
+        c = self.physics.max_speed
+        dt = 1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n * c) 
         # correct dt for integer # of time steps
         num_time_steps = int(np.ceil(self.t_final/ dt))
         print(f"time step size: {dt}")
         self.dt = (self.t_final / num_time_steps)
+
+    def _compute_time_step_size(self):
+        n = self.physics.mesh.reference_element.n
+        surface_to_volume_jacobian = self.physics.mesh.surface_to_volume_jacobian
+        d = self.physics.mesh.smallest_diameter
+        c = self.physics.max_speed
+        alpha = 0.503
+        dt = (alpha * d) / c
+        # correct dt for integer # of time steps
+        num_time_steps = int(np.ceil(self.t_final/ dt))
+        self.dt = (self.t_final / num_time_steps)/2
+        print(f"time step size: {dt}")
 
     def advance_time_step(self):
         """advance forward in time by dt"""
@@ -63,3 +76,53 @@ class LowStorageRungeKutta:
         self.t += self.dt  # Increment time
         self.current_time_step += 1
         print(self.current_time_step)
+
+    def advance_time_step_rk_with_force_term(self):
+        """
+        advance forward in time by dt
+        Algorithm by He et al. "modeling 3D elastic waves propagation in Ti Media"
+        """
+        dt = self.dt
+        tau = (3 - np.sqrt(3))/6
+        eta1 = 0.33
+        eta2 = 0.87
+        source_cell = 49
+        source_node = 2
+        source_frequency = 4
+        amplitude = 50
+
+
+        LC_u, LC_v, LC_w, LC_p = self.physics.compute_rhs()
+        LC2_u, LC2_v, LC2_w, LC2_p = self.physics.compute_rhs(LC_u, LC_v, LC_w, LC_p)
+        LC3_u, LC3_v, LC3_w, LC3_p = self.physics.compute_rhs(LC2_u, LC2_v, LC2_w, LC2_p)
+         
+        K_u = LC_u + tau * self.dt * LC2_u + eta1 * (tau * self.dt)**2 * LC3_u
+        K_v = LC_v + tau * self.dt * LC2_v + eta1 * (tau * self.dt)**2 * LC3_v
+        K_w = LC_w + tau * self.dt * LC2_w + eta1 * (tau * self.dt)**2 * LC3_w
+        K_p = LC_p + tau * self.dt * LC2_p + eta1 * (tau * self.dt)**2 * LC3_p
+
+        K_p[source_node, source_cell] = amplitude * np.sin(2 * np.pi * source_frequency * (self.t + tau * self.dt))
+
+        # compute Kbar
+        T_u = self.physics.u + (1 - 2 * tau) * self.dt * K_u
+        T_v = self.physics.v + (1 - 2 * tau) * self.dt * K_v
+        T_w = self.physics.w + (1 - 2 * tau) * self.dt * K_w
+        T_p = self.physics.p + (1 - 2 * tau) * self.dt * K_p
+        LT_u, LT_v, LT_w, LT_p = self.physics.compute_rhs(T_u, T_v, T_w, T_p)
+        LT2_u, LT2_v, LT2_w, LT2_p = self.physics.compute_rhs(LT_u, LT_v, LT_w, LT_p)
+        LT3_u, LT3_v, LT3_w, LT3_p = self.physics.compute_rhs(LT2_u, LT2_v, LT2_w, LT2_p)
+
+        Kbar_u = LT_u + tau * self.dt * LT2_u + eta2 * (tau * self.dt)**2 * LT3_u
+        Kbar_v = LT_v + tau * self.dt * LT2_v + eta2 * (tau * self.dt)**2 * LT3_v
+        Kbar_w = LT_w + tau * self.dt * LT2_w + eta2 * (tau * self.dt)**2 * LT3_w
+        Kbar_p = LT_p + tau * self.dt * LT2_p + eta2 * (tau * self.dt)**2 * LT3_p
+        Kbar_p[source_node, source_cell] = amplitude * np.sin(2 * np.pi * source_frequency * (self.t + (1 - tau) * self.dt))
+
+        self.physics.u = self.physics.u + (self.dt/2) * (K_u + Kbar_u)
+        self.physics.v = self.physics.v + (self.dt/2) * (K_v + Kbar_v)
+        self.physics.w = self.physics.w + (self.dt/2) * (K_w + Kbar_w)
+        self.physics.p = self.physics.p + (self.dt/2) * (K_p + Kbar_p)
+        
+        self.t += self.dt  # Increment time
+        self.current_time_step += 1
+
