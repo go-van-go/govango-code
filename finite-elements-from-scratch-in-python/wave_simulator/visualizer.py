@@ -7,11 +7,11 @@ from wave_simulator.reference_element_operators import ReferenceElementOperators
 from wave_simulator.finite_elements import LagrangeElement
 
 class Visualizer:
-    def __init__(self, time_stepper, grid=True):
+    def __init__(self, time_stepper, grid=True, save=True):
         self.time_stepper = time_stepper
         self.physics = time_stepper.physics
         self.mesh = time_stepper.physics.mesh
-        self.plotter = pv.Plotter()
+        self.plotter = pv.Plotter(off_screen=save)
         camera_position = [(3.40, 1.30, 1.10), (0.0, 0.3, 0.3), (0, 0, 1)]
         self.plotter.camera_position = camera_position
         self.get_domain_parameters()
@@ -573,11 +573,10 @@ class Visualizer:
         plotter.show()
 
     def save(self):
-        self.plotter.off_screen = True
         file_name=f't_{self.time_stepper.current_time_step:0>8}.png'
         self.plotter.screenshot(f'./outputs/images/{file_name}')
-        self.plotter.off_screen = False 
 
     def show(self):
+        self.plotter.off_screen = False  # Enable on-screen rendering
         self.plotter.show()
-
+        self.plotter.off_screen = True   # Restore off-screen rendering

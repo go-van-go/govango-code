@@ -1,7 +1,6 @@
 import pickle
 import numpy as np
 from wave_simulator.physics import LinearAcoustics
-from wave_simulator.visualizing import visualize_mesh 
 
 
 class LowStorageRungeKutta:

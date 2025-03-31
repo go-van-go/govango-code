@@ -26,6 +26,7 @@ mesh_file = "./inputs/meshes/0.1.msh"
 
 # create mesh
 mesh = Mesh3d(mesh_file, lagrange_element)
+
 # select physics
 physics = LinearAcoustics(mesh)
 
@@ -39,51 +40,45 @@ save = True
 interactive = True 
 interactive_save = True 
 visualize_start = 0
-skips_between_interactive_visualization = 20
+skips_between_interactive_visualization = 10
 skips_between_interactive_saves= 100
 skips_between_saves = 5
 
-## Specify the path to the saved pickle file
-#file_path = f'./outputs/3d_data/sim_data_00000500.pkl'
-#
-## Open the file in read-binary mode and load the object
-#with open(file_path, 'rb') as file:
-#    physics = pickle.load(file)
-#
-#time_stepper = LowStorageRungeKutta(physics, 0.1345, t_final)
-#time_stepper.current_time_step = 700
+def load_file(file_path):
+    ## Open the file in read-binary mode and load the object
+    with open(file_path, 'rb') as file:
+        time_stepper = pickle.load(file)
+    return time_stepper
 
+#file_path = f'./outputs/3d_data/time_stepper_00000500.pkl'
+#time_stepper = load_file(file_path)
+
+# Create a visualizer object
 visualizer = Visualizer(time_stepper)
-#visualizer.add_field_3d(physics.p, 10)
-#visualizer.add_field_point_cloud(physics.p, 20)
-#visualizer.add_nodes_3d(physics.p)
-#visualizer.add_cells([4,5,6])
-#visualizer.add_cell_averages(physics.p)
-#visualizer.add_mesh()
-#visualizer.add_mesh_boundary()
-#visualizer.add_inclusion_boundary()
-#visualizer.show()
 
+# Main time loop of simulation
 while time_stepper.t < time_stepper.t_final:
-
+    # only visualize after visualize_start
     if time_stepper.current_time_step >= visualize_start:
+        # visualize plot to be saved
         if time_stepper.current_time_step % skips_between_saves == 0 and save: 
-            breakpoint()
             visualizer.add_cell_averages(physics.p)
             visualizer.save()
+        # visualize interactive plot
         if time_stepper.current_time_step % skips_between_interactive_visualization == 0 and interactive:
-            pass
+            interactive = Visualizer(time_stepper, save=False)
+            interactive.add_cell_averages(physics.p)
+            interactive.show()
+
+    # save time_stepper object
     if time_stepper.current_time_step % skips_between_interactive_saves == 0 and interactive_save:
         # Save the self instance to a file
-        with open(f'./outputs/3d_data/sim_data_{time_stepper.current_time_step:0>8}.pkl', 'wb') as file:
-            pickle.dump(time_stepper.physics, file)
+        with open(f'./outputs/3d_data/time_stepper_{time_stepper.current_time_step:0>8}.pkl', 'wb') as file:
+            pickle.dump(time_stepper, file)
 
     #time_stepper.advance_time_step_rk_with_force_term()
     time_stepper.advance_time_step()
 
     print(f"t = {time_stepper.t},  timestep = {time_stepper.current_time_step}")
-
-    #print(f"max solution: {np.max(solution)},   min:{np.min(solution)}")
-    #print(f"max dp: {np.max(time_stepper.physics.dp)},   min:{np.min(time_stepper.physics.dp)}")
 
 gmsh.finalize()

@@ -3,8 +3,6 @@ from scipy.special import gamma
 from scipy.linalg import eig
 from pathlib import Path  
 
-#from wave_simulator.visualizing import *
-
 
 class LagrangeElement:
     """Lagrange finite element defined on a triangle and
