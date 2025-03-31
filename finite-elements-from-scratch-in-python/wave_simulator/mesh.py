@@ -44,6 +44,7 @@ class Mesh3d:
        
         
         self._extract_mesh_info()
+        self._get_material_info()
         self._get_smallest_diameter()
         self._build_connectivityMatricies()
         #self._compute_gmsh_jacobians()
@@ -54,7 +55,7 @@ class Mesh3d:
         self._find_boundary_nodes()
         self._compute_surface_to_volume_jacobian()
 
-        gmsh.finalize()
+        #gmsh.finalize()
 
     def _extract_mesh_info(self):
         """ Get information from Gmsh file """
@@ -66,21 +67,34 @@ class Mesh3d:
         self.y_vertex = self.vertex_coordinates[:, 1]
         self.z_vertex = self.vertex_coordinates[:, 2]
 
-        # get edges
-        edge_vertices = gmsh.model.mesh.getElementEdgeNodes(4)
-        self.edge_vertices = edge_vertices.reshape(int(len(edge_vertices)/2), 2).astype(int) - 1
-
         # get cell information
         # get all the nodes from tetrahedrons (elementType = 4)
         node_tags, _, _ = gmsh.model.mesh.getNodesByElementType(4) 
         self.num_cells = int(len(node_tags)/4) 
         self.cell_to_vertices = node_tags.reshape(-1, 4).astype(int) - 1
 
+    def _get_material_info(self):
+        speed = [1, 50]
+        density = [1, 1]
+        #pressure = [1,0]
+        physical_groups = gmsh.model.getPhysicalGroups()
+        self.speed = np.ones((self.num_cells)) * 1#1450 # m/s wavespeed of fat
+        self.density = np.ones((self.num_cells)) * 1#1450 # m/s wavespeed of fat
+        #self.pressure= np.ones((self.num_cells)) * 1#1450 # m/s wavespeed of fat
+        for group in physical_groups:
+            dim = group[0]
+            tag = group[1]
+            entities = gmsh.model.getEntitiesForPhysicalGroup(dim, tag)
+            for entity in entities:
+                elemTypes, elemTags, elemNodeTags = gmsh.model.mesh.getElements(dim, entity)
+                self.speed[np.array(elemTags)-1] = speed[entity-1]
+                self.density[np.array(elemTags)-1] = density[entity-1]
+        #        self.pressure[np.array(elemTags)-1] = pressure[entity-1]
 
     def _get_smallest_diameter(self):
         _, eleTags , _ = gmsh.model.mesh.getElements(dim=3)
         radii = gmsh.model.mesh.getElementQualities(eleTags[0], "innerRadius")
-        self.smallest_diameter = np.min(radii)
+        self.smallest_diameter = np.min(radii) * 2
         
 
     def _build_connectivityMatricies(self):
@@ -341,3 +355,13 @@ class Mesh3d:
         face_node_indices = self.reference_element.face_node_indices
         J = self.jacobians
         self.surface_to_volume_jacobian = sJ / J[face_node_indices, :]
+
+    def get_edges(self):
+        # get edges
+        gmsh.initialize()
+        gmsh.open(self.msh_file)
+ 
+        edge_vertices = gmsh.model.mesh.getElementEdgeNodes(4)
+        return edge_vertices.reshape(int(len(edge_vertices)/2), 2).astype(int) - 1
+
+        gmsh.finalize()

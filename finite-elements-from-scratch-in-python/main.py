@@ -4,7 +4,7 @@ from wave_simulator.reference_element_operators import ReferenceElementOperators
 from wave_simulator.mesh import Mesh3d 
 from wave_simulator.physics import LinearAcoustics
 from wave_simulator.time_steppers import LowStorageRungeKutta
-from wave_simulator.visualizing import *
+from wave_simulator.visualizer import Visualizer
 
 # create finite element
 dimension = 3
@@ -16,10 +16,13 @@ lagrange_element = LagrangeElement(dimension, polynomial_order)
 #mesh_file = "./inputs/meshes/structured_cube.msh"
 #mesh_file = "./inputs/meshes/10.msh"
 #mesh_file = "./inputs/meshes/0.2.msh"
-#mesh_file = "./inputs/meshes/0.1.msh"
+mesh_file = "./inputs/meshes/0.1.msh"
 #mesh_file = "./inputs/meshes/0.06.msh"
-mesh_file = "./inputs/meshes/0.05.msh"
+#mesh_file = "./inputs/meshes/0.05.msh"
 #mesh_file = "./inputs/meshes/0.025.msh"
+#mesh_file = "./inputs/meshes/split03.msh"
+#mesh_file = "./inputs/meshes/split05.msh"
+#mesh_file = "./inputs/meshes/split1.msh"
 
 # create mesh
 mesh = Mesh3d(mesh_file, lagrange_element)
@@ -33,23 +36,12 @@ time_stepper = LowStorageRungeKutta(physics, t_initial, t_final)
 
 # when and how to visualize
 save = True
-interactive = False 
+interactive = True 
 interactive_save = True 
 visualize_start = 0
-skips_between_interactive_visualization = 100
+skips_between_interactive_visualization = 20
 skips_between_interactive_saves= 100
 skips_between_saves = 5
-
-# what to visualize
-elements=[]
-normals = elements
-boundary_nodes=False
-boundary_normals=False
-boundary_face_nodes=False
-mesh_edges=False
-mesh_boundary=False
-#wave_speed=physics.speed
-wave_speed=np.array([])
 
 ## Specify the path to the saved pickle file
 #file_path = f'./outputs/3d_data/sim_data_00000500.pkl'
@@ -61,57 +53,37 @@ wave_speed=np.array([])
 #time_stepper = LowStorageRungeKutta(physics, 0.1345, t_final)
 #time_stepper.current_time_step = 700
 
+visualizer = Visualizer(time_stepper)
+#visualizer.add_field_3d(physics.p, 10)
+#visualizer.add_field_point_cloud(physics.p, 20)
+#visualizer.add_nodes_3d(physics.p)
+#visualizer.add_cells([4,5,6])
+#visualizer.add_cell_averages(physics.p)
+#visualizer.add_mesh()
+#visualizer.add_mesh_boundary()
+#visualizer.add_inclusion_boundary()
+#visualizer.show()
+
 while time_stepper.t < time_stepper.t_final:
-    # solution visualization (changes every time step)
-    #solution = time_stepper.physics.p # + physics.v + physics.w
-    solution = np.array([])
-    average_solution=time_stepper.physics.p
-    #average_solution= np.array([])
-    jumps=np.array([])
-    boundary_jumps=np.array([])
 
     if time_stepper.current_time_step >= visualize_start:
         if time_stepper.current_time_step % skips_between_saves == 0 and save: 
-            visualize_mesh(mesh,
-                           file_name=f"solution_t_{time_stepper.current_time_step:0>8}.png",
-                           jumps=jumps,
-                           normals=normals,
-                           solution=solution,
-                           average_solution=average_solution,
-                           wave_speed=wave_speed,
-                           elements=elements,
-                           boundary_nodes=boundary_nodes,
-                           boundary_face_nodes=boundary_face_nodes,
-                           boundary_normals=boundary_normals,
-                           boundary_jumps=boundary_jumps,
-                           mesh_edges=mesh_edges,
-                           mesh_boundary=mesh_boundary,
-                           save=True)
-
+            breakpoint()
+            visualizer.add_cell_averages(physics.p)
+            visualizer.save()
         if time_stepper.current_time_step % skips_between_interactive_visualization == 0 and interactive:
-            visualize_mesh(mesh,
-                           jumps=jumps,
-                           normals=normals,
-                           solution=solution,
-                           average_solution=average_solution,
-                           wave_speed=wave_speed,
-                           elements=elements,
-                           boundary_nodes=boundary_nodes,
-                           boundary_face_nodes=boundary_face_nodes,
-                           boundary_normals=boundary_normals,
-                           boundary_jumps=boundary_jumps,
-                           mesh_edges=mesh_edges,
-                           mesh_boundary=mesh_boundary,
-                           save=False)
-
+            pass
     if time_stepper.current_time_step % skips_between_interactive_saves == 0 and interactive_save:
         # Save the self instance to a file
         with open(f'./outputs/3d_data/sim_data_{time_stepper.current_time_step:0>8}.pkl', 'wb') as file:
             pickle.dump(time_stepper.physics, file)
 
-    time_stepper.advance_time_step_rk_with_force_term()
+    #time_stepper.advance_time_step_rk_with_force_term()
+    time_stepper.advance_time_step()
 
     print(f"t = {time_stepper.t},  timestep = {time_stepper.current_time_step}")
+
     #print(f"max solution: {np.max(solution)},   min:{np.min(solution)}")
     #print(f"max dp: {np.max(time_stepper.physics.dp)},   min:{np.min(time_stepper.physics.dp)}")
 
+gmsh.finalize()
