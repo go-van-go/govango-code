@@ -6,8 +6,10 @@ from wave_simulator.finite_elements import LagrangeElement
 class Mesh3d:
     def __init__(self, msh_file, finite_element: LagrangeElement):
         gmsh.initialize()
+        gmsh.option.setNumber("General.Terminal", 0);
+        print(f"Processing mesh file {msh_file} ...")
         gmsh.open(msh_file)
-        
+
         self.msh_file = msh_file
         self.reference_element = finite_element 
         self.reference_element_operators = ReferenceElementOperators(self.reference_element)
@@ -54,6 +56,7 @@ class Mesh3d:
         self._compute_face_node_mappings()
         self._find_boundary_nodes()
         self._compute_surface_to_volume_jacobian()
+        self._log_info()
 
         #gmsh.finalize()
 
@@ -365,3 +368,10 @@ class Mesh3d:
         return edge_vertices.reshape(int(len(edge_vertices)/2), 2).astype(int) - 1
 
         gmsh.finalize()
+
+    def _log_info(self):
+        print(f"Number of cells: {self.num_cells}")
+        print(f"Number of vertices: {self.num_vertices}")
+        print(f"Using {self.n} order Lagrange element")
+        print(f"Nodes per cell: {self.reference_element.nodes_per_cell}")
+        print(f"Number of nodes: {self.reference_element.nodes_per_cell * self.num_cells}")

@@ -16,7 +16,7 @@ class Visualizer:
         self.plotter.camera_position = camera_position
         self.get_domain_parameters()
         if grid:
-            self._show_grid(self.plotter)
+            self._show_grid()
 
     def get_domain_parameters(self):
         # get minimum coordinate values
@@ -29,8 +29,8 @@ class Visualizer:
         self.y_max = np.max(self.mesh.y)
         self.z_max = np.max(self.mesh.z)
 
-    def _show_grid(self, plotter):
-        plotter.show_grid(bounds=[self.x_min, self.x_max,
+    def _show_grid(self):
+        self.plotter.show_grid(bounds=[self.x_min, self.x_max,
                                   self.y_min, self.y_max,
                                   self.z_min, self.z_max])
 
@@ -577,6 +577,4 @@ class Visualizer:
         self.plotter.screenshot(f'./outputs/images/{file_name}')
 
     def show(self):
-        self.plotter.off_screen = False  # Enable on-screen rendering
         self.plotter.show()
-        self.plotter.off_screen = True   # Restore off-screen rendering

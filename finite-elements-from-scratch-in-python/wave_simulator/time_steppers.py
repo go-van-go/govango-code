@@ -29,6 +29,7 @@ class LowStorageRungeKutta:
         self.res_p = np.zeros((nodes_per_cell, num_cells))
         self.physics = physics
         self.old_compute_time_step_size()
+        self._log_info()
 
     def old_compute_time_step_size(self):
         n = self.physics.mesh.reference_element.n
@@ -36,9 +37,8 @@ class LowStorageRungeKutta:
         c = self.physics.max_speed
         dt = 1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n * c) 
         # correct dt for integer # of time steps
-        num_time_steps = int(np.ceil(self.t_final/ dt))
-        print(f"time step size: {dt}")
-        self.dt = (self.t_final / num_time_steps)
+        self.num_time_steps = int(np.ceil(self.t_final/ dt))
+        self.dt = (self.t_final / self.num_time_steps)
 
     def _compute_time_step_size(self):
         """
@@ -136,5 +136,10 @@ class LowStorageRungeKutta:
 
         self.t += self.dt  # Increment time
         self.current_time_step += 1
-        print(self.current_time_step)
+
+    def _log_info(self):
+        print(f"Final time: {self.t_final} s")
+        print(f"Time step size: {self.dt:.6g} s")
+        print(f"Total Number of timesteps: {self.num_time_steps}")
+        print("......... Running simulation .........")
 
