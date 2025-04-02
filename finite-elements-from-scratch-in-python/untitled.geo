@@ -1,21 +1,24 @@
 // Define mesh size
-lc = 0.1;  // Adjust this value to make the elements smaller
+lc = 0.05;  // Adjust this value to make the elements smaller
+x_dim = .20;
+y_dim = .20;
+z_dim = .20;
 
 // Define points with a smaller characteristic length
 Point(1) = {0, 0, 0, lc};
-Point(2) = {1, 0, 0, lc};
-Point(3) = {1, 1, 0, lc};
-Point(4) = {0, 1, 0, lc};
+Point(2) = {x_dim, 0, 0, lc};
+Point(3) = {x_dim, y_dim, 0, lc};
+Point(4) = {0, y_dim, 0, lc};
 
-Point(5) = {0, 0, 0.5, lc};
-Point(6) = {1, 0, 0.5, lc};
-Point(7) = {1, 1, 0.5, lc};
-Point(8) = {0, 1, 0.5, lc};
+Point(5) = {0, 0, z_dim/2, lc};
+Point(6) = {x_dim, 0, z_dim/2, lc};
+Point(7) = {x_dim, y_dim, z_dim/2, lc};
+Point(8) = {0, y_dim, z_dim/2, lc};
 
-Point(9) = {0, 0, 1, lc};
-Point(10) = {1, 0, 1, lc};
-Point(11) = {1, 1, 1, lc};
-Point(12) = {0, 1, 1, lc};
+Point(9) = {0, 0, z_dim, lc};
+Point(10) = {x_dim, 0, z_dim, lc};
+Point(11) = {x_dim, y_dim, z_dim, lc};
+Point(12) = {0, y_dim, z_dim, lc};
 
 // Define lower cube faces
 Line(1) = {1, 2};
@@ -79,6 +82,11 @@ Plane Surface(10) = {10};
 Line Loop(11) = {8, 17, -16, -20};
 Plane Surface(11) = {11};
 
+SetFactory("OpenCASCADE");
+Circle(21) = {0.1, 0.1, 0, 0.02, 0, 2*Pi};
+Curve Loop(21) = {21};
+Plane Surface(12) = {21};
+
 // Define volumes
 Surface Loop(1) = {1, 2, 4, 5, 6, 7};
 Volume(1) = {1};
@@ -89,7 +97,9 @@ Volume(2) = {2};
 // Define physical groups
 Physical Volume("LowerVolume") = {1};
 Physical Volume("UpperVolume") = {2};
+Physical Surface("source") = {12};
 
 // Mesh settings
 Mesh.ElementSizeFactor = 0.5;  // Make elements even smaller
 Mesh 3;
+//+

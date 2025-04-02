@@ -77,22 +77,25 @@ class Mesh3d:
         self.cell_to_vertices = node_tags.reshape(-1, 4).astype(int) - 1
 
     def _get_material_info(self):
-        speed = [1, 50]
-        density = [1, 1]
+        speed = [1.6470, 1.0470 ] # m/s (bone is around 3000)
+        density = [1.0400, 1.6600] # kg/m^3 (bone is around 2000
         #pressure = [1,0]
-        physical_groups = gmsh.model.getPhysicalGroups()
-        self.speed = np.ones((self.num_cells)) * 1#1450 # m/s wavespeed of fat
-        self.density = np.ones((self.num_cells)) * 1#1450 # m/s wavespeed of fat
-        #self.pressure= np.ones((self.num_cells)) * 1#1450 # m/s wavespeed of fat
+        dim = 3
+        physical_groups = gmsh.model.getPhysicalGroups(dim)
+        #self.speed = np.ones((self.num_cells)) * 1# m/s
+        self.speed = np.ones((self.reference_element.nodes_per_cell, self.num_cells)) # m/s 
+        #self.density = np.ones((self.num_cells)) * 1# kg/m^3 
+        self.density = np.ones((self.reference_element.nodes_per_cell, self.num_cells)) # kg/m^3
+
         for group in physical_groups:
             dim = group[0]
             tag = group[1]
             entities = gmsh.model.getEntitiesForPhysicalGroup(dim, tag)
             for entity in entities:
                 elemTypes, elemTags, elemNodeTags = gmsh.model.mesh.getElements(dim, entity)
-                self.speed[np.array(elemTags)-1] = speed[entity-1]
-                self.density[np.array(elemTags)-1] = density[entity-1]
-        #        self.pressure[np.array(elemTags)-1] = pressure[entity-1]
+                offset, _ = gmsh.model.mesh.getElementsByType(4)
+                self.speed[:, np.array(elemTags)-offset[0]] = speed[entity-1]
+                self.density[:, np.array(elemTags)-offset[0]] = density[entity-1]
 
     def _get_smallest_diameter(self):
         _, eleTags , _ = gmsh.model.mesh.getElements(dim=3)

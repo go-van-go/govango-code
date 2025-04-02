@@ -34,13 +34,13 @@ class LinearAcoustics:
         #average_cell_density = mode(self.density, axis=0).mode  # Mode of density for each cell
         # Replace each column with its mean value
         #self.density = np.tile(average_cell_speed, (self.density.shape[0], 1))
-        self.speed = np.tile(mesh.speed, (mesh.reference_element.nodes_per_cell, 1))
-        self.density = np.tile(mesh.density, (mesh.reference_element.nodes_per_cell, 1))
+        #self.speed = np.tile(mesh.speed, (mesh.reference_element.nodes_per_cell, 1))
+        #self.density = np.tile(mesh.density, (mesh.reference_element.nodes_per_cell, 1))
         #self.pressure = np.tile(mesh.pressure, (mesh.reference_element.nodes_per_cell, 1))
-        self.max_speed = np.max(self.speed)
+        self.max_speed = np.max(self.mesh.speed)
         self.set_initial_conditions()
 
-    def set_initial_conditions(self, kind="gaussian"):
+    def set_initial_conditions(self, kind="none"):
         """Set initial conditions for testing the wave propagation."""
         # initialize zero value velocity and pressure fields
         num_cells = self.mesh.num_cells
@@ -91,10 +91,10 @@ class LinearAcoustics:
         exterior_values = self.mesh.exterior_face_node_indices
         interior_values = self.mesh.interior_face_node_indices
         # get interior values on cells
-        rho_p = self.density.ravel(order='F')[exterior_values]
-        c_p = self.speed.ravel(order='F')[exterior_values]
-        rho_m = self.density.ravel(order='F')[interior_values]
-        c_m = self.speed.ravel(order='F')[interior_values]
+        rho_p = self.mesh.density.ravel(order='F')[exterior_values]
+        c_p = self.mesh.speed.ravel(order='F')[exterior_values]
+        rho_m = self.mesh.density.ravel(order='F')[interior_values]
+        c_m = self.mesh.speed.ravel(order='F')[interior_values]
         rho_p, rho_m, c_p, c_m = self._reshape_to_rectangular(rho_p, rho_m, c_p, c_m)
         return rho_p, rho_m, c_p, c_m
 
@@ -156,13 +156,9 @@ class LinearAcoustics:
         if p is None:
             p = self.p
 
-        # get material parameters 
-        rho = self.density
-        c = self.speed
-
         # get heterogeneous material matrices
         rho_p, rho_m, c_p, c_m = self._get_material_face_values()
-
+        
         # spatial derivative matrices
         Dr = self.mesh.reference_element_operators.r_differentiation_matrix
         Ds = self.mesh.reference_element_operators.s_differentiation_matrix
@@ -195,34 +191,39 @@ class LinearAcoustics:
         ndotup = self.mesh.nx * u_p + self.mesh.ny * v_p + self.mesh.nz * w_p
 
         # homogeneous material fluxes
-        flux_u = 0.5 * (self.mesh.nx * ((p_p - p_m) - (ndotup - ndotum)))
-        flux_v = 0.5 * (self.mesh.ny * ((p_p - p_m) - (ndotup - ndotum)))
-        flux_w = 0.5 * (self.mesh.nz * ((p_p - p_m) - (ndotup - ndotum)))
-        flux_p = 0.5 * ((ndotup - ndotum) - (p_p - p_m))
+        #flux_u = 0.5 * (self.mesh.nx * ((p_p - p_m) - (ndotup - ndotum)))
+        #flux_v = 0.5 * (self.mesh.ny * ((p_p - p_m) - (ndotup - ndotum)))
+        #flux_w = 0.5 * (self.mesh.nz * ((p_p - p_m) - (ndotup - ndotum)))
+        #flux_p = 0.5 * ((ndotup - ndotum) - (p_p - p_m))
 
         # get max speed for every interface
-        #mu = np.maximum(c_p, c_m)
+        mu = np.maximum(c_p, c_m)
 
-        ## compute fluxes
-        ## flux from Xiun He 2025 - An effective discontinuous galerkin
-        #flux_p = 0.5 * (
-        #    (rho_p * c_p**2 * u_p - rho_m * c_m**2 * u_m) * self.mesh.nx + \
-        #    (rho_p * c_p**2 * v_p - rho_m * c_m**2 * v_m) * self.mesh.ny + \
-        #    (rho_p * c_p**2 * w_p - rho_m * c_m**2 * w_m) * self.mesh.nz - \
-        #    mu * (p_p - p_m)
-        #)
-        #flux_u = 0.5 * (self.mesh.nx * ((p_p / rho_p) - (p_m / rho_m) - mu * (ndotup - ndotum)))
-        #flux_v = 0.5 * (self.mesh.ny * ((p_p / rho_p) - (p_m / rho_m) - mu * (ndotup - ndotum)))
-        #flux_w = 0.5 * (self.mesh.nz * ((p_p / rho_p) - (p_m / rho_m) - mu * (ndotup - ndotum)))
+        # compute fluxes
+        # flux from Xiun He 2025 - An effective discontinuous galerkin
+        flux_p = 0.5 * (
+            (rho_p * c_p**2 * u_p - rho_m * c_m**2 * u_m) * self.mesh.nx + \
+            (rho_p * c_p**2 * v_p - rho_m * c_m**2 * v_m) * self.mesh.ny + \
+            (rho_p * c_p**2 * w_p - rho_m * c_m**2 * w_m) * self.mesh.nz - \
+            mu * (p_p - p_m)
+        )
+        flux_u = 0.5 * (self.mesh.nx * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
+        flux_v = 0.5 * (self.mesh.ny * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
+        flux_w = 0.5 * (self.mesh.nz * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
 
 
         # compute fluxes
         # RH-condition flux from Wenzhong Cao 2024 - Acoustic wave simulation in strongly heterogeneous...
-        #flux_p = -(rho_m * (c_m**2)) * (ndotum - ((p_p - p_m) + (rho_p * c_p * (ndotup - ndotum))) / (rho_m * c_m + rho_p * c_p))
-        #flux_u = self.mesh.nx * (-(p_m / rho_m) + (c_m * ((p_p - p_m) - (rho_p * c_p * (ndotup - ndotum)))) / (rho_m * c_m + rho_p * c_p))
-        #flux_v = self.mesh.ny * (-(p_m / rho_m) + (c_m * ((p_p - p_m) - (rho_p * c_p * (ndotup - ndotum)))) / (rho_m * c_m + rho_p * c_p))
-        #flux_w = self.mesh.nz * (-(p_m / rho_m) + (c_m * ((p_p - p_m) - (rho_p * c_p * (ndotup - ndotum)))) / (rho_m * c_m + rho_p * c_p))
-        
+        #normal_vel_jump = ndotup - ndotum
+        #pressure_jump = p_p - p_m
+        #denominator = (rho_m * c_m + rho_p * c_p)
+        #numerator = pressure_jump - (rho_p * c_p * (normal_vel_jump))
+        #factor = numerator / denominator
+
+        #flux_p = (rho_m * (c_m**2)) * (-ndotum - factor)
+        #flux_u = self.mesh.nx * (-(p_m / rho_m) + (c_m * factor))
+        #flux_v = self.mesh.ny * (-(p_m / rho_m) + (c_m * factor))
+        #flux_w = self.mesh.nz * (-(p_m / rho_m) + (c_m * factor))
         
         # get necessary matricies for integral computation
         face_scale = self.mesh.surface_to_volume_jacobian

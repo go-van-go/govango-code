@@ -12,11 +12,21 @@ class Visualizer:
         self.physics = time_stepper.physics
         self.mesh = time_stepper.physics.mesh
         self.plotter = pv.Plotter(off_screen=save)
-        camera_position = [(3.40, 1.30, 1.10), (0.0, 0.3, 0.3), (0, 0, 1)]
-        self.plotter.camera_position = camera_position
+
         self.get_domain_parameters()
         if grid:
             self._show_grid()
+        self.set_camera()
+
+    def set_camera(self):
+        camera_position = [
+            # position
+            (self.x_max * 3.1, self.y_max * 2.3, self.z_max * 1.1),
+            # looking at
+            (self.x_max * 0.3, self.y_max * 0.3, self.z_max * 0.3),
+            # up direction
+            (0, 0, 1)]
+        self.plotter.camera_position = camera_position
 
     def get_domain_parameters(self):
         # get minimum coordinate values
@@ -34,18 +44,16 @@ class Visualizer:
                                   self.y_min, self.y_max,
                                   self.z_min, self.z_max])
 
-    def _get_grid_coordinates(self, origin, dimensions, spacing):
-        # Generate grid points
-        x = np.arange(origin[0], dimensions[0], spacing[0])
-        y = np.arange(origin[1], dimensions[1], spacing[1])
-        z = np.arange(origin[2], dimensions[2], spacing[2])
+    def _get_grid_coordinates(self, origin, dimensions, resolution):
+        # Generate grid points with correct point counts
+        x = np.linspace(origin[0], origin[0] + dimensions[0], resolution)
+        y = np.linspace(origin[1], origin[1] + dimensions[1], resolution)
+        z = np.linspace(origin[2], origin[2] + dimensions[2], resolution)
         
-        # Create mesh grid
-        X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
-
-        # Stack into a list of (x, y, z) points
-        coordinates = np.stack((X.ravel(), Y.ravel(), Z.ravel()), axis=-1)
-        return coordinates
+        # Create mesh grid with ij indexing (more natural for volumes)
+        X, Y, Z = np.meshgrid(x, y, z, indexing='ij')  # Note 'ij' instead of 'xy'
+        
+        return np.column_stack((X.ravel(order='F'), Y.ravel(order='F'), Z.ravel(order='F')))
 
     def _get_voxel_data(self, field, coordinates):
         """ get field value in each 3D voxel"""
@@ -78,7 +86,7 @@ class Visualizer:
         origin, dimensions, spacing = self._get_grid_parameters(resolution)
 
         # get grid coordinates
-        coordinates = self._get_grid_coordinates(origin, dimensions, spacing)
+        coordinates = self._get_grid_coordinates(origin, dimensions, resolution)
 
         # get volume data
         volume_data = self._get_voxel_data(field, coordinates)
@@ -91,10 +99,13 @@ class Visualizer:
         )
     
         # Assign volume data as the active scalars
-        grid.point_data["values"] = volume_data 
+        grid.point_data["values"] = volume_data#.ravel(order='F')
 
         # Add volume to the plotter
-        vol = self.plotter.add_volume(grid)
+        vol = self.plotter.add_volume(
+            grid,
+            opacity = [0, 0, 0, 0.1, 0.3, 0.3, 0.3, 0.5,1]
+        )
 
         # Add clipping widgets
         for norm in ['-x', '-y']:
@@ -227,16 +238,6 @@ class Visualizer:
         
         # Flatten the solution matrix to align with the coordinates
         field = np.ravel(field, order='F')
-
-        # index all non boundary indices
-        #all_indices = np.arange(len(solution_values))  # Get all indices of solution_values
-        #non_boundary_indices = np.setdiff1d(all_indices, mesh.boundary_node_indices)
-        #solution_values[non_boundary_indices] = 0
-
-        #solution_values[mesh.boundary_node_indices] = 0
-        #solution_values[interior_node_indices] = (solution_values[interior_node_indices] + \
-            #                                           solution_values[exterior_node_indices]) / 2 
-        #solution_values[exterior_node_indices]=0
 
         # Add the points to the plot with colors and opacity
         self.plotter.add_points(
@@ -492,7 +493,7 @@ class Visualizer:
         """
         Visualizes a 2D NumPy array using a colormap.
         """
-        cmap = 'virdis'
+        cmap = 'viridis'
         if array.ndim != 2:
             raise ValueError("Input array must be 2D")
     
@@ -505,7 +506,6 @@ class Visualizer:
         plt.xlabel("Columns")
         plt.ylabel("Rows")
         plt.show()
-
 
     def plot_reference_nodes_3d(self):
         """ plot the nodes for the reference finite element """
@@ -557,7 +557,6 @@ class Visualizer:
             line = pv.Line(vertices[edge[0]], vertices[edge[1]])
             self.plotter.add_mesh(line, color="black", line_width=2)
 
-
     def enter_4th_dimension(self, resolution=50):
         """ Add a 3D field visualization tothe plotter """
         origin = (0,0,0)
@@ -569,7 +568,13 @@ class Visualizer:
         
         # Plot using volume rendering
         plotter = pv.Plotter()
-        plotter.add_mesh(cloud, color='blue', point_size=2, render_points_as_spheres=True)
+        plotter.add_mesh(
+            cloud,
+            color='blue',
+            point_size=2,
+            render_points_as_spheres=True
+        )
+        
         plotter.show()
 
     def save(self):
