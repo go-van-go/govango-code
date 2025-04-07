@@ -12,6 +12,9 @@ class Visualizer:
         self.physics = time_stepper.physics
         self.mesh = time_stepper.physics.mesh
         self.plotter = pv.Plotter(off_screen=save)
+        if not gmsh.isInitialized():
+            self.mesh.initialize_gmsh()
+
         # Reason for element_offset- Gmsh counts lower order elements like points and lines
         # before counting tetrahedrons. This code calls the first tetraheron element '0'
         self._element_offset, _ = gmsh.model.mesh.getElementsByType(4)
@@ -106,6 +109,7 @@ class Visualizer:
        
     def add_field_3d(self, field, resolution=40):
         """ Add a 3D field visualization tothe plotter """
+        print("... Creating 3D voxel grid of data ... ")
         vol_grid = self._get_volume_grid(field, resolution)
 
         # Add volume to the plotter
@@ -594,6 +598,32 @@ class Visualizer:
         file_name=f't_{self.time_stepper.current_time_step:0>8}.png'
         self.plotter.screenshot(f'./outputs/images/{file_name}')
 
+    def plot_tracked_points(self, point_data, tracked_points):
+        num_points, num_steps = point_data.shape
+        dt = self.time_stepper.dt
+        time_array = np.arange(num_steps) * dt 
+    
+        fig, axes = plt.subplots(num_points, 1, figsize=(10, 4 * num_points), sharex=True)
+    
+        if num_points == 1:
+            axes = [axes]  # Ensure axes is iterable
+    
+        for i in range(num_points):
+            x, y, z = tracked_points[i]
+            ax = axes[i]
+            ax.plot(time_array, point_data[i],
+                    marker='o', markersize=3,
+                    linestyle='-', linewidth=1,
+                    label=f'Point {i}')
+            ax.set_title(f'Pressure at (x={x:.2f}, y={y:.2f}, z={z:.2f})')
+            ax.set_ylabel('Pressure')
+            ax.grid(True, alpha=0.3)
+    
+        axes[-1].set_xlabel('Time (s)')
+    
+        plt.tight_layout()
+        plt.show()
+
     def save_to_vtk(self, field, resolution):
         vol_grid = self._get_volume_grid(field, resolution)
         file_name=f't_{self.time_stepper.current_time_step:0>8}.vti'
@@ -601,3 +631,6 @@ class Visualizer:
 
     def show(self):
         self.plotter.show()
+
+    def clear(self):
+        self.plotter.clear()

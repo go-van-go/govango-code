@@ -5,11 +5,7 @@ from wave_simulator.finite_elements import LagrangeElement
 
 class Mesh3d:
     def __init__(self, msh_file, finite_element: LagrangeElement):
-        gmsh.initialize()
-        gmsh.option.setNumber("General.Terminal", 0);
-        print(f"Processing mesh file {msh_file} ...")
-        gmsh.open(msh_file)
-
+        self.initialize_gmsh()
         self.msh_file = msh_file
         self.reference_element = finite_element 
         self.reference_element_operators = ReferenceElementOperators(self.reference_element)
@@ -59,6 +55,13 @@ class Mesh3d:
         self._log_info()
 
         #gmsh.finalize()
+
+    def initialize_gmsh(self):
+        gmsh.initialize()
+        gmsh.option.setNumber("General.Terminal", 0);
+        print(f"... Processing mesh file {self.msh_file} ...")
+        gmsh.open(self.msh_file)
+        self._log_info()
 
     def _extract_mesh_info(self):
         """ Get information from Gmsh file """

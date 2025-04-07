@@ -197,7 +197,6 @@ class LinearAcoustics:
 
         # get max speed for every interface
         mu = np.maximum(c_p, c_m)
-        breakpoint()
 
         # compute fluxes
         # flux from Xiun He 2025 - An effective discontinuous galerkin
