@@ -77,8 +77,9 @@ class Mesh3d:
         self.cell_to_vertices = node_tags.reshape(-1, 4).astype(int) - 1
 
     def _get_material_info(self):
-        speed = [1.6470, 1.0470 ] # m/s (bone is around 3000)
-        density = [1.0400, 1.6600] # kg/m^3 (bone is around 2000
+        # lower volume is first
+        speed = [1.0 , 2.0] # m/s (bone is around 3000)
+        density = [1.0, 1.0] # kg/m^3 (bone is around 2000
         #pressure = [1,0]
         dim = 3
         physical_groups = gmsh.model.getPhysicalGroups(dim)
@@ -101,7 +102,6 @@ class Mesh3d:
         _, eleTags , _ = gmsh.model.mesh.getElements(dim=3)
         radii = gmsh.model.mesh.getElementQualities(eleTags[0], "innerRadius")
         self.smallest_diameter = np.min(radii) * 2
-        
 
     def _build_connectivityMatricies(self):
         """tetrahedral face connect algorithm from Toby Isaac"""

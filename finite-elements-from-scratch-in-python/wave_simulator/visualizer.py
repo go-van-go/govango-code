@@ -12,6 +12,9 @@ class Visualizer:
         self.physics = time_stepper.physics
         self.mesh = time_stepper.physics.mesh
         self.plotter = pv.Plotter(off_screen=save)
+        # Reason for element_offset- Gmsh counts lower order elements like points and lines
+        # before counting tetrahedrons. This code calls the first tetraheron element '0'
+        self._element_offset, _ = gmsh.model.mesh.getElementsByType(4)
 
         self.get_domain_parameters()
         if grid:
@@ -40,9 +43,7 @@ class Visualizer:
         self.z_max = np.max(self.mesh.z)
 
     def _show_grid(self):
-        self.plotter.show_grid(bounds=[self.x_min, self.x_max,
-                                  self.y_min, self.y_max,
-                                  self.z_min, self.z_max])
+        self.plotter.show_grid()
 
     def _get_grid_coordinates(self, origin, dimensions, resolution):
         # Generate grid points with correct point counts
@@ -79,8 +80,8 @@ class Visualizer:
                    dimensions[2]/resolution)
 
         return origin, dimensions, spacing
-       
-    def add_field_3d(self, field, resolution=40):
+
+    def _get_volume_grid(self, field, resolution):
         """ Add a 3D field visualization tothe plotter """
         # get grid parameters
         origin, dimensions, spacing = self._get_grid_parameters(resolution)
@@ -99,22 +100,32 @@ class Visualizer:
         )
     
         # Assign volume data as the active scalars
-        grid.point_data["values"] = volume_data#.ravel(order='F')
+        grid.point_data["field values"] = volume_data
+
+        return grid
+       
+    def add_field_3d(self, field, resolution=40):
+        """ Add a 3D field visualization tothe plotter """
+        vol_grid = self._get_volume_grid(field, resolution)
 
         # Add volume to the plotter
         vol = self.plotter.add_volume(
-            grid,
-            opacity = [0, 0, 0, 0.1, 0.3, 0.3, 0.3, 0.5,1]
+            vol_grid,
+            opacity = [0, 0, 0, 0.1, 0.3, 0.3, 0.9, 1,1]
         )
 
         # Add clipping widgets
-        for norm in ['-x', '-y']:
-            self.plotter.add_volume_clip_plane(
-                vol,
-                normal=norm,
-                interaction_event='always',
-                normal_rotation=False,
-            )
+        #for norm in ['-x', '-y']:
+        #    self.plotter.add_volume_clip_plane(
+        #        vol,
+        #        normal=norm,
+        #        interaction_event='always',
+        #        normal_rotation=False,
+        #    )
+
+        self.plotter.add_mesh_slice(vol,
+                                    normal='-x',
+                                    interaction_event='always')
 
     def add_field_point_cloud(self, field, resolution=50):
         """ Add a 3D field visualization to the plotter """
@@ -137,12 +148,8 @@ class Visualizer:
         # dimension
         dim = 3
 
-        # Reason for offset - Gmsh counts lower order elements like points and lines
-        # before counting tetrahedrons. This code calls the first tetraheron element '0'
-        offset, _ = gmsh.model.mesh.getElementsByType(4)
-
         # find element
-        element = gmsh.model.mesh.getElementByCoordinates(x, y, z, dim)[0] - offset[0]
+        element = gmsh.model.mesh.getElementByCoordinates(x, y, z, dim)[0] - self._element_offset[0]
         return element
 
     def eval_at_point(self, x, y, z, field):
@@ -238,13 +245,17 @@ class Visualizer:
         
         # Flatten the solution matrix to align with the coordinates
         field = np.ravel(field, order='F')
+        opacity = np.abs(field)
 
         # Add the points to the plot with colors and opacity
         self.plotter.add_points(
             node_coordinates,
             scalars=field,
-            cmap="viridis",  # Use any colormap you prefer
-            opacity='linear',
+            cmap="viridis",
+            #opacity='linear',
+            #opacity=opacity,
+            clim=[-1,1],
+            opacity=[0.7, 0.5, 0.5, 0, 0.5, 0.7, 0.9],
             point_size=10,
             render_points_as_spheres=True
         )
@@ -372,7 +383,6 @@ class Visualizer:
         )
  
 
-    
     def add_cell_averages(self, field):
         """
         Plot cell averages for a given solution.
@@ -394,19 +404,22 @@ class Visualizer:
         cell_types = np.repeat(np.array([pv.CellType.TETRA]), self.mesh.num_cells)
         # get coordinates from mesh
         coordinates = self.mesh.vertex_coordinates[self.mesh.cell_to_vertices.ravel()]
-        
+
         # create unstructured grid
         grid = pv.UnstructuredGrid(
             cells,
             cell_types,
             coordinates
         )
-           
+
         # add to plotter
         self.plotter.add_mesh(
             grid,
             scalars=cell_averages,
-            opacity=abs(cell_averages)
+            #opacity=abs(cell_averages),
+            opacity=[0.7, 0.5, 0.5, 0, 0.5, 0.7, 0.9],
+            clim=[-1,1],
+            cmap='seismic'
         )
 
     def add_wave_speed(self):
@@ -433,7 +446,7 @@ class Visualizer:
         # add to plotter
         self.plotter.add_mesh(
             grid,
-            scalars=self.mesh.speed,
+            scalars=self.mesh.speed[0,:],
             opacity=0.005#'linear'#abs(wave_speed)
         )
 
@@ -580,6 +593,11 @@ class Visualizer:
     def save(self):
         file_name=f't_{self.time_stepper.current_time_step:0>8}.png'
         self.plotter.screenshot(f'./outputs/images/{file_name}')
+
+    def save_to_vtk(self, field, resolution):
+        vol_grid = self._get_volume_grid(field, resolution)
+        file_name=f't_{self.time_stepper.current_time_step:0>8}.vti'
+        vol_grid.save(f"./outputs/vtk_data/{file_name}")
 
     def show(self):
         self.plotter.show()

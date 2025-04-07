@@ -10,41 +10,36 @@ from wave_simulator.physics import LinearAcoustics
 from wave_simulator.time_steppers import LowStorageRungeKutta
 from wave_simulator.visualizer import Visualizer
 
-# create finite element
+# Create finite element
 dimension = 3
 polynomial_order = 2 # eta1 and eta2 are defined for N=2
 lagrange_element = LagrangeElement(dimension, polynomial_order)
 
-# select mesh
+# Select mesh file
 #mesh_file = "./inputs/meshes/simple.msh"
 #mesh_file = "./inputs/meshes/0.1.msh"
 #mesh_file = "./inputs/meshes/0.05.msh"
 #mesh_file = "./inputs/meshes/split03.msh"
 #mesh_file = "./inputs/meshes/split05.msh"
 #mesh_file = "./inputs/meshes/split1.msh"
-mesh_file = "./inputs/meshes/015_split_source.msh"
+#mesh_file = "./inputs/meshes/015_split_source.msh"
+#mesh_file = "./inputs/meshes/0.05_split_source.msh"
+mesh_file = "./inputs/meshes/0.05_small_split_source.msh"
+#mesh_file = "./inputs/meshes/0.05_heterogeneous_source.msh"
 #mesh_file = "./inputs/meshes/long_source.msh"
 
-
-# create mesh
+# Create mesh
 mesh = Mesh3d(mesh_file, lagrange_element)
 
-# select physics
+# Create physics
 physics = LinearAcoustics(mesh)
 
-# select time stepping method
+# Create time stepping object 
 t_initial = 0.0
-t_final = 2.0
-time_stepper = LowStorageRungeKutta(physics, t_initial, t_final)
+t_final = 1.6
 
-# when and how to visualize
-save_image = True
-view_interactive = False
-save_data = True 
-visualize_start = 0
-skips_between_interactive_visualization = 100
-skips_between_data_saves= 100
-skips_between_image_saves = 5
+file_path = f'./outputs/3d_data/time_stepper_00002000.pkl'
+#file_path = False
 
 def load_file(file_path):
     """ load a timestepper from memory """
@@ -52,16 +47,41 @@ def load_file(file_path):
         time_stepper = pickle.load(file)
     return time_stepper
 
-file_path = f'./outputs/3d_data/time_stepper_00001700.pkl'
-time_stepper = load_file(file_path)
+if file_path:
+    time_stepper = load_file(file_path)
+else:
+    time_stepper = LowStorageRungeKutta(physics, t_initial, t_final)
+    
 
+# Save and visualization parameters 
+save_image = True
+view_interactive = True 
+save_data = True
+visualize_start = 0
+skips_between_interactive_visualization = 100
+skips_between_data_saves= 100
+skips_between_image_saves = 10
+
+# Pre Visualization
 pre_visualizer = Visualizer(time_stepper, save=False)
-pre_visualizer.add_field_3d(time_stepper.physics.p, resolution=40)
+#pre_visualizer.add_field_3d(time_stepper.physics.p, resolution=50)
+#pre_visualizer.add_cell_averages(time_stepper.physics.p)
+pre_visualizer.add_nodes_3d(time_stepper.physics.p)
+#pre_visualizer.add_wave_speed()
 pre_visualizer.show()
-pre_visualizer.plotter.clear()
+#pre_visualizer.plotter.clear()
 
+# Create visualizers
 saved_visualizer = Visualizer(time_stepper, save=True)
 interactive_visualizer = Visualizer(time_stepper, save=False)
+
+# Keep track of field values at points 
+points = [[0.5, 0.5, 0.10],
+          [0.5, 0.5, 0.30]]
+fast_data = np.zeros((720))
+slow_data = np.zeros((720))
+counter = 0
+
 breakpoint()
 
 # Main time loop of simulation
@@ -73,22 +93,31 @@ while time_stepper.t < time_stepper.t_final:
             saved_visualizer._show_grid()
             saved_visualizer.add_cell_averages(physics.p)
             #saved_visualizer.add_nodes_3d(physics.p)
+            #saved_visualizer.add_nodes_3d(physics.p)
             saved_visualizer.save()
             saved_visualizer.plotter.clear()
+
+            slow_data[counter] = saved_visualizer.eval_at_point(points[0][0], points[0][1], points[0][2], time_stepper.physics.p)
+            fast_data[counter] = saved_visualizer.eval_at_point(points[1][0], points[1][1], points[1][2], time_stepper.physics.p)
+            counter += 1
+
         # visualize interactive plot
         if time_stepper.current_time_step % skips_between_interactive_visualization == 0 and view_interactive:
-            saved_visualizer._show_grid()
-            interactive_visualizer = Visualizer(time_stepper, save=False)
-            #interactive_view_interactive.add_cell_averages(physics.p)
-            interactive_visualizer.add_nodes_3d(physics.p)
-            interactive_visualizer.show()
-            interactive_visualizer.plotter.clear()
+            with open(f'./outputs/3d_data/time_stepper_{time_stepper.current_time_step:0>8}.pkl', 'wb') as file:
+                pickle.dump(time_stepper, file)
 
-    # save time_stepper object
+            #interactive_visualizer = Visualizer(time_stepper, save=False)
+            ##interactive_view_interactive.add_cell_averages(physics.p)
+            #interactive_visualizer.add_nodes_3d(physics.p)
+            #interactive_visualizer.show()
+            #interactive_visualizer.plotter.clear()
+
     if time_stepper.current_time_step % skips_between_data_saves == 0 and save_data:
         # Save the self instance to a file
-        with open(f'./outputs/3d_data/time_stepper_{time_stepper.current_time_step:0>8}.pkl', 'wb') as file:
-            pickle.dump(time_stepper, file)
+        #with open(f'./outputs/3d_data/time_stepper_{time_stepper.current_time_step:0>8}.pkl', 'wb') as file:
+        #    pickle.dump(time_stepper, file)
+        np.save('slow_data.npy', slow_data)
+        np.save('fast_data.npy', fast_data)
 
     time_stepper.advance_time_step_rk_with_force_term()
     #time_stepper.advance_time_step()

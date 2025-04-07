@@ -1,58 +1,40 @@
-from wave_simulator.finite_elements import LagrangeElement
-from wave_simulator.reference_element_operators import ReferenceElementOperators
-from wave_simulator.mesh import Mesh3d 
-from wave_simulator.physics import LinearAcoustics
-from wave_simulator.time_steppers import LowStorageRungeKutta
-
-import pdb
-import pickle
+import matplotlib.pyplot as plt
 import numpy as np
-from numpy import nan
-import pyvista as pv
-from wave_simulator.visualizing import *
 
-# Specify the path to the saved pickle file
-#file_path = f'/home/lj/Desktop/3d_data/sim_data_00008300.pkl'
-file_path = f'./outputs/3d_data/sim_data_00000000.pkl'
-#
-## Open the file in read-binary mode and load the object
-with open(file_path, 'rb') as file:
-    physics = pickle.load(file)
+# Load your data
+slow_data = np.load('slow_data.npy')[:430]
+fast_data = np.load('fast_data.npy')[:430]
 
-# create mesh
-mesh = physics.mesh
+# Define timestep (in seconds)
+time_step = 0.000235571
 
-# what to visualize
-#elements=[311]
-elements=[440]
-normals = elements
-boundary_nodes=False
-boundary_normals=False
-boundary_face_nodes=False
-mesh_edges=False
-mesh_boundary=False
-wave_speed=physics.density
-#wave_speed=np.array([])
-average_solution= physics.p 
-#average_solution=np.array([]) 
-jumps=np.array([])
-boundary_jumps=np.array([])
-inclusion=False
-#solution = physics.p # + physics.v + physics.w
-solution = np.array([]) # + physics.v + physics.w
-visualize_mesh(mesh,
-               jumps=jumps,
-               normals=normals,
-               solution=solution,
-               average_solution=average_solution,
-               wave_speed=wave_speed,
-               elements=elements,
-               inclusion=inclusion,
-               boundary_nodes=boundary_nodes,
-               boundary_face_nodes=boundary_face_nodes,
-               boundary_normals=boundary_normals,
-               boundary_jumps=boundary_jumps,
-               mesh_edges=mesh_edges,
-               mesh_boundary=mesh_boundary,
-               save=False)
+# Create time arrays
+time_slow = np.arange(len(slow_data)) * time_step*10
+time_fast = np.arange(len(fast_data)) * time_step*10
 
+# Create figure with two subplots
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+# Plot fast wave speed data
+ax1.plot(time_fast, fast_data, 
+         marker='s', markersize=3, 
+         linestyle='--', linewidth=1,
+         color='red', label='Fast Wave Speed')
+ax1.set_title('Fast Wave Speed, c = 3.0, density = 3.0, xyz = (0.5, 0.5, 0.3)')
+ax1.set_xlabel('Time')
+ax1.set_ylabel('Pressure')  # Changed to Pressure
+ax1.grid(True, alpha=0.3)
+
+# Plot slow wave speed data
+ax2.plot(time_slow, slow_data, 
+         marker='o', markersize=4, 
+         linestyle='-', linewidth=1,
+         color='blue', label='Slow Wave Speed')
+ax2.set_title('Slow Wave Speed, c = 1.0, density = 1.0, xyz = (0.5, 0.5, 0.1)')
+ax2.set_xlabel('Time')
+ax2.set_ylabel('Pressure')  # Changed to Pressure
+ax2.grid(True, alpha=0.3)
+
+# Adjust layout and display
+plt.tight_layout()
+plt.show()

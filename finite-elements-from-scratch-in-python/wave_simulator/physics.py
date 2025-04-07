@@ -85,7 +85,6 @@ class LinearAcoustics:
         dp = dp.reshape((Npf*num_faces, K), order='F')
         return du, dv, dw, dp
 
-
     def _get_material_face_values(self):
         # indices for interior and exterior values
         exterior_values = self.mesh.exterior_face_node_indices
@@ -198,6 +197,7 @@ class LinearAcoustics:
 
         # get max speed for every interface
         mu = np.maximum(c_p, c_m)
+        breakpoint()
 
         # compute fluxes
         # flux from Xiun He 2025 - An effective discontinuous galerkin
