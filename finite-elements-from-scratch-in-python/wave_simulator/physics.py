@@ -1,5 +1,6 @@
 import numpy as np
 from wave_simulator.mesh import Mesh3d
+from wave_simulator.visualizer import Visualizer 
 from scipy.stats import mode
 
 class LinearAcoustics:
@@ -157,7 +158,7 @@ class LinearAcoustics:
 
         # get heterogeneous material matrices
         rho_p, rho_m, c_p, c_m = self._get_material_face_values()
-        
+
         # spatial derivative matrices
         Dr = self.mesh.reference_element_operators.r_differentiation_matrix
         Ds = self.mesh.reference_element_operators.s_differentiation_matrix
@@ -190,10 +191,10 @@ class LinearAcoustics:
         ndotup = self.mesh.nx * u_p + self.mesh.ny * v_p + self.mesh.nz * w_p
 
         # homogeneous material fluxes
+        #flux_p = 0.5 * ((ndotup - ndotum) - (p_p - p_m))
         #flux_u = 0.5 * (self.mesh.nx * ((p_p - p_m) - (ndotup - ndotum)))
         #flux_v = 0.5 * (self.mesh.ny * ((p_p - p_m) - (ndotup - ndotum)))
         #flux_w = 0.5 * (self.mesh.nz * ((p_p - p_m) - (ndotup - ndotum)))
-        #flux_p = 0.5 * ((ndotup - ndotum) - (p_p - p_m))
 
         # get max speed for every interface
         mu = np.maximum(c_p, c_m)
@@ -210,28 +211,33 @@ class LinearAcoustics:
         flux_v = 0.5 * (self.mesh.ny * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
         flux_w = 0.5 * (self.mesh.nz * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
 
-
         # compute fluxes
         # RH-condition flux from Wenzhong Cao 2024 - Acoustic wave simulation in strongly heterogeneous...
+        #Z_p = rho_p * c_p
+        #Z_m = rho_m * c_m
         #normal_vel_jump = ndotup - ndotum
         #pressure_jump = p_p - p_m
-        #denominator = (rho_m * c_m + rho_p * c_p)
-        #numerator = pressure_jump - (rho_p * c_p * (normal_vel_jump))
-        #factor = numerator / denominator
 
-        #flux_p = (rho_m * (c_m**2)) * (-ndotum - factor)
-        #flux_u = self.mesh.nx * (-(p_m / rho_m) + (c_m * factor))
-        #flux_v = self.mesh.ny * (-(p_m / rho_m) + (c_m * factor))
-        #flux_w = self.mesh.nz * (-(p_m / rho_m) + (c_m * factor))
-        
-        # get necessary matricies for integral computation
+        #numerator = pressure_jump - Z_p * normal_vel_jump
+        #denominator = Z_p + Z_m
+        #correction = numerator / denominator
+
+        #flux_p = Z_m * (-ndotum - correction)
+        #flux_u = self.mesh.nx * (-(p_m / rho_m) + c_m * correction)
+        #flux_v = self.mesh.ny * (-(p_m / rho_m) + c_m * correction)
+        #flux_w = self.mesh.nz * (-(p_m / rho_m) + c_m * correction)
+
+        ## get necessary matricies for integral computation
         face_scale = self.mesh.surface_to_volume_jacobian
         lift = self.mesh.reference_element_operators.lift_matrix
 
-        # compute right-hand side terms using lifting operation
-        self.rhs_u = -dpdx - lift @ (face_scale * flux_u)
-        self.rhs_v = -dpdy - lift @ (face_scale * flux_v)
-        self.rhs_w = -dpdz - lift @ (face_scale * flux_w)
-        self.rhs_p = -(dudx + dvdy + dwdz) - lift @ (face_scale * flux_p)
+        ## inverse density and bulk modulus (rho c^2)
+        inv_rho = 1.0 / self.mesh.density
+        bulk = self.mesh.density * self.mesh.speed ** 2
+
+        self.rhs_u = -inv_rho * dpdx - lift @ (face_scale * flux_u)
+        self.rhs_v = -inv_rho * dpdy - lift @ (face_scale * flux_v)
+        self.rhs_w = -inv_rho * dpdz - lift @ (face_scale * flux_w)
+        self.rhs_p = -bulk * (dudx + dvdy + dwdz) - lift @ (face_scale * flux_p)
 
         return self.rhs_u, self.rhs_v, self.rhs_w, self.rhs_p,

@@ -421,9 +421,9 @@ class Visualizer:
             grid,
             scalars=cell_averages,
             #opacity=abs(cell_averages),
-            opacity=[0.7, 0.5, 0.5, 0, 0.5, 0.7, 0.9],
+            opacity=[0.9, 0.7, 0.5, 0.5,0.3, 0, 0.3, 0.5, 0.5, 0.7, 0.9],
             clim=[-1,1],
-            cmap='seismic'
+            #cmap='seismic'
         )
 
     def add_wave_speed(self):

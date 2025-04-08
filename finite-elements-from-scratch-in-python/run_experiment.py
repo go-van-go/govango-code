@@ -7,10 +7,12 @@ from wave_simulator.simulator import Simulator
 
 
 # select mesh file
-mesh_file = "./inputs/meshes/0.1.msh"
+#mesh_file = "./inputs/meshes/0.1.msh"
 #mesh_file = "./inputs/meshes/015_split_source.msh"
 #mesh_file = "./inputs/meshes/0.05_split_source.msh"
 #mesh_file = "./inputs/meshes/0.05_small_split_source.msh"
+mesh_file = "./inputs/meshes/0.05inclusion.msh"
+#mesh_file = "./inputs/meshes/0.05_v_small_split_source.msh"
 #mesh_file = "./inputs/meshes/0.05_heterogeneous_source.msh"
 #mesh_file = "./inputs/meshes/long_source.msh"
 
@@ -36,8 +38,6 @@ simulator.set_save_intervals(image=10, data=100, points=10, vtk=0)
 simulator.track_points([
     [0.5, 0.5, 0.10],
     [0.5, 0.5, 0.30],
-    [0.5, 0.5, 0.50],
-    [0.5, 0.5, 0.70],
 ])
 
 # run experiment

@@ -5,7 +5,6 @@ from wave_simulator.finite_elements import LagrangeElement
 
 class Mesh3d:
     def __init__(self, msh_file, finite_element: LagrangeElement):
-        self.initialize_gmsh()
         self.msh_file = msh_file
         self.reference_element = finite_element 
         self.reference_element_operators = ReferenceElementOperators(self.reference_element)
@@ -40,7 +39,7 @@ class Mesh3d:
        # self.jacobians = {}
        # #self.determinants = {}
        
-        
+        self.initialize_gmsh()
         self._extract_mesh_info()
         self._get_material_info()
         self._get_smallest_diameter()
@@ -52,7 +51,7 @@ class Mesh3d:
         self._compute_face_node_mappings()
         self._find_boundary_nodes()
         self._compute_surface_to_volume_jacobian()
-        self._log_info()
+        self.log_info()
 
         #gmsh.finalize()
 
@@ -61,7 +60,6 @@ class Mesh3d:
         gmsh.option.setNumber("General.Terminal", 0);
         print(f"... Processing mesh file {self.msh_file} ...")
         gmsh.open(self.msh_file)
-        self._log_info()
 
     def _extract_mesh_info(self):
         """ Get information from Gmsh file """
@@ -80,9 +78,9 @@ class Mesh3d:
         self.cell_to_vertices = node_tags.reshape(-1, 4).astype(int) - 1
 
     def _get_material_info(self):
-        # lower volume is first
-        speed = [1.0 , 2.0] # m/s (bone is around 3000)
-        density = [1.0, 1.0] # kg/m^3 (bone is around 2000
+        # inclusion is first
+        speed = [3.0 , 1.0] # m/s (bone is around 3000)
+        density = [1.5, 1.0] # kg/m^3 (bone is around 2000
         #pressure = [1,0]
         dim = 3
         physical_groups = gmsh.model.getPhysicalGroups(dim)
@@ -91,15 +89,16 @@ class Mesh3d:
         #self.density = np.ones((self.num_cells)) * 1# kg/m^3 
         self.density = np.ones((self.reference_element.nodes_per_cell, self.num_cells)) # kg/m^3
 
-        for group in physical_groups:
+        # loop over all physical_groups
+        for i, group in enumerate(physical_groups):
             dim = group[0]
             tag = group[1]
             entities = gmsh.model.getEntitiesForPhysicalGroup(dim, tag)
             for entity in entities:
                 elemTypes, elemTags, elemNodeTags = gmsh.model.mesh.getElements(dim, entity)
                 offset, _ = gmsh.model.mesh.getElementsByType(4)
-                self.speed[:, np.array(elemTags)-offset[0]] = speed[entity-1]
-                self.density[:, np.array(elemTags)-offset[0]] = density[entity-1]
+                self.speed[:, np.array(elemTags)-offset[0]] = speed[i]
+                self.density[:, np.array(elemTags)-offset[0]] = density[i]
 
     def _get_smallest_diameter(self):
         _, eleTags , _ = gmsh.model.mesh.getElements(dim=3)
@@ -367,15 +366,10 @@ class Mesh3d:
 
     def get_edges(self):
         # get edges
-        gmsh.initialize()
-        gmsh.open(self.msh_file)
- 
         edge_vertices = gmsh.model.mesh.getElementEdgeNodes(4)
         return edge_vertices.reshape(int(len(edge_vertices)/2), 2).astype(int) - 1
 
-        gmsh.finalize()
-
-    def _log_info(self):
+    def log_info(self):
         print(f"Number of cells: {self.num_cells}")
         print(f"Number of vertices: {self.num_vertices}")
         print(f"Using {self.n} order Lagrange element")

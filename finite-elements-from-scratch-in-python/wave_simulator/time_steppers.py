@@ -31,7 +31,7 @@ class LowStorageRungeKutta:
         self.source_position = (0.5, 0.5, 0.00)
         self.source_radius = 0.019
         self.source_frequency = 10
-        self.source_amplitude = -100
+        self.source_amplitude = 300
         self.tau = (3 - np.sqrt(3))/6
         self.physics = physics
         self._compute_time_step_size_xijun()
@@ -53,7 +53,7 @@ class LowStorageRungeKutta:
         """
         d = self.physics.mesh.smallest_diameter
         c = self.physics.max_speed
-        alpha = 0.10 # max is 0.503 for eta1 = 0.33 and eta2 = 0.87
+        alpha = 0.2 # max is 0.503 for eta1 = 0.33 and eta2 = 0.87
         dt = (alpha * d) / c
         # correct dt for integer # of time steps
         self.num_time_steps = int(np.ceil(self.t_final/ dt))
