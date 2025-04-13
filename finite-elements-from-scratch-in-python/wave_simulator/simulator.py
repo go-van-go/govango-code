@@ -22,6 +22,7 @@ class Simulator:
         self.visualizer = Visualizer(self.time_stepper)
 
         self.save_image_interval = 0
+        self.visualizer.save_image_interval = 0
         self.save_data_interval = 0
         self.save_points_interval = 0
         self.save_vtk_interval = 0
@@ -61,7 +62,8 @@ class Simulator:
             if self.save_vtk_interval and t_step % self.save_vtk_interval == 0:
                self._save_to_vtk(self.physics.p, resolution=40)
 
-            self.time_stepper.advance_time_step_rk_with_force_term()
+            #self.time_stepper.advance_time_step_rk_with_force_term()
+            self.time_stepper.advance_time_step()
             self._log_info()
 
     def _save_data(self):
@@ -76,6 +78,7 @@ class Simulator:
     def _save_image(self):
         self.visualizer.plotter.clear()
         self.visualizer._show_grid()
+        #self.visualizer.add_inclusion_boundary()
         self.visualizer.add_cell_averages(self.time_stepper.physics.p)
         self.visualizer.save()
 

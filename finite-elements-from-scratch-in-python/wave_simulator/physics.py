@@ -38,6 +38,13 @@ class LinearAcoustics:
         #self.speed = np.tile(mesh.speed, (mesh.reference_element.nodes_per_cell, 1))
         #self.density = np.tile(mesh.density, (mesh.reference_element.nodes_per_cell, 1))
         #self.pressure = np.tile(mesh.pressure, (mesh.reference_element.nodes_per_cell, 1))
+        self.source_center = np.array([0.5, 0.5, 0.0])
+        self.source_radius = 0.02
+        self.source_frequency = 10  # Hz
+        self.source_duration = 1 / self.source_frequency
+        self.source_duration = 0.070
+        self.source_amplitude = 10
+        self.damping_coefficient =  20.0
         self.max_speed = np.max(self.mesh.speed)
         self.set_initial_conditions()
 
@@ -98,8 +105,24 @@ class LinearAcoustics:
         rho_p, rho_m, c_p, c_m = self._reshape_to_rectangular(rho_p, rho_m, c_p, c_m)
         return rho_p, rho_m, c_p, c_m
 
+   # def _get_amplitude(self, time):
+   #     # Get acmplitude
+   #     if time >= self.source_duration:
+   #         # exponentially decay signal to kill it
+   #         exp_decay = np.exp(-self.damping_coefficient* (time - self.source_duration))
+   #         amplitude = self.source_amplitude * exp_decay 
+   #     else:
+   #         # apply signal as normal
+   #         amplitude = self.source_amplitude
+   #     return amplitude
+    def _get_amplitude(self, time):
+        # Hann window envelope 
+        T = self.source_duration
+        envelope = 0.5 * (1 - np.cos(2 * np.pi * time / T))  # Hann window
+        amplitude = self.source_amplitude * envelope
+        return amplitude
 
-    def _apply_boundary_conditions(self):
+    def _apply_boundary_conditions(self, time):
         # indices for interior and exterior values
         interior_values = self.mesh.interior_face_node_indices
         exterior_values = self.mesh.exterior_face_node_indices
@@ -133,13 +156,31 @@ class LinearAcoustics:
         w_p[boundary] = w_m[boundary] - 2.0 * (ndotum) * nz[boundary]
         p_p[boundary] = p_m[boundary]
 
+        if time < self.source_duration:
+            omega = 2 * np.pi * self.source_frequency
+            amplitude = self._get_amplitude(time)
+            source_pressure = amplitude * np.sin(omega * time)
+
+            # Get global boundary face node coordinates
+            x_b = self.mesh.x.ravel(order='F')[exterior_values][boundary]
+            y_b = self.mesh.y.ravel(order='F')[exterior_values][boundary]
+            z_b = self.mesh.z.ravel(order='F')[exterior_values][boundary]
+            
+            # Find nodes within circular source region
+            in_source = ((x_b - self.source_center[0])**2 +
+                         (y_b - self.source_center[1])**2 < self.source_radius**2) & \
+                         (np.abs(z_b - self.source_center[2]) < 1e-6)
+            
+            # Overwrite the pressure with sinusoidal source
+            p_p[boundary[in_source]] = source_pressure
+            
         # reshape for matrix-matrix multiplication
         u_m, v_m, w_m, p_m = self._reshape_to_rectangular(u_m, v_m, w_m, p_m)
         u_p, v_p, w_p, p_p = self._reshape_to_rectangular(u_p, v_p, w_p, p_p)
         return u_p, v_p, w_p, p_p, u_m, v_m, w_m, p_m 
 
 
-    def compute_rhs(self, u=None, v=None, w=None, p=None):
+    def compute_rhs(self, u=None, v=None, w=None, p=None, time=0.0):
         """
         flux function based on Xijun He et al. 2025
         "An effective discontinuous Galerkin method for solving
@@ -184,7 +225,7 @@ class LinearAcoustics:
         dpdz = drdz * (Dr @ self.p) + dsdz * (Ds @ self.p) + dtdz * (Dt @ self.p)
 
         # apply boundary conditions
-        u_p, v_p, w_p, p_p, u_m, v_m, w_m, p_m = self._apply_boundary_conditions()
+        u_p, v_p, w_p, p_p, u_m, v_m, w_m, p_m = self._apply_boundary_conditions(time)
 
         # compute normal velocity at interior boundary and exterior boundary 
         ndotum = self.mesh.nx * u_m + self.mesh.ny * v_m + self.mesh.nz * w_m

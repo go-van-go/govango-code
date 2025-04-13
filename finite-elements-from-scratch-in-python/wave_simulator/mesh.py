@@ -79,8 +79,10 @@ class Mesh3d:
 
     def _get_material_info(self):
         # inclusion is first
-        speed = [3.0 , 1.0] # m/s (bone is around 3000)
-        density = [1.5, 1.0] # kg/m^3 (bone is around 2000
+        speed = [1.5 , 3.0] # m/s (bone is around 3000)
+        #speed = [1500 , 3000] # m/s (bone is around 3000)
+        density = [1.0, 1.5] # kg/m^3 (bone is around 2000
+        #density = [1000, 1500] # kg/m^3 (bone is around 2000
         #pressure = [1,0]
         dim = 3
         physical_groups = gmsh.model.getPhysicalGroups(dim)

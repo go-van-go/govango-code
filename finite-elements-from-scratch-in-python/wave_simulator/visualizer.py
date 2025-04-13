@@ -264,6 +264,28 @@ class Visualizer:
             render_points_as_spheres=True
         )
 
+    def add_node_list(self, nodes):
+         # Extract x, y, z coordinates for the nodes
+        x = np.ravel(self.mesh.x, order='F')[nodes]
+        y = np.ravel(self.mesh.y, order='F')[nodes]
+        z = np.ravel(self.mesh.z, order='F')[nodes]
+        
+        # Stack into nodal points
+        node_coordinates = np.column_stack((x, y, z))
+         # Add the points to the plot with colors and opacity
+        self.plotter.add_points(
+            node_coordinates,
+            #scalars=field,
+            #cmap="viridis",
+            #opacity='linear',
+            #opacity=opacity,
+            #clim=[-1,1],
+            #opacity=[0.7, 0.5, 0.5, 0, 0.5, 0.7, 0.9],
+            point_size=10,
+            render_points_as_spheres=True
+        )
+        
+
     def add_cell_nodes(self, cell_list):
         # Extract x, y, z coordinates for the nodes in the specified elements
         x = self.mesh.x[:, cell_list].flatten()
@@ -420,10 +442,12 @@ class Visualizer:
         self.plotter.add_mesh(
             grid,
             scalars=cell_averages,
-            #opacity=abs(cell_averages),
-            opacity=[0.9, 0.7, 0.5, 0.5,0.3, 0, 0.3, 0.5, 0.5, 0.7, 0.9],
+            #opacity=np.abs(cell_averages),
+            #opacity=[0.9, 0.7, 0.5, 0.5,0.3, 0, 0.3, 0.5, 0.5, 0.7, 0.9],
+            opacity=[0.9, 0.7, 0.5,  0, 0.5, 0.7, 0.9],
             clim=[-1,1],
-            #cmap='seismic'
+            cmap='seismic',
+            smooth_shading=True
         )
 
     def add_wave_speed(self):
@@ -554,8 +578,8 @@ class Visualizer:
     def add_inclusion_boundary(self):
         # Define the inclusion vertices
         vertices = np.array([
-            [0.4, 0.4, 0.4], [0.4, 0.4, 0.6], [0.4, 0.6, 0.4], [0.4, 0.6, 0.6],
-            [0.6, 0.4, 0.4], [0.6, 0.4, 0.6], [0.6, 0.6, 0.4], [0.6, 0.6, 0.6]
+            [0.1, 0.1, 0.1], [0.1, 0.1, 0.9], [0.1, 0.9, 0.1], [0.1, 0.9, 0.9],
+            [0.9, 0.1, 0.1], [0.9, 0.1, 0.9], [0.9, 0.9, 0.1], [0.9, 0.9, 0.9]
         ])
         
         # Define the edges as pairs of vertex indices
@@ -600,8 +624,8 @@ class Visualizer:
 
     def plot_tracked_points(self, point_data, tracked_points):
         num_points, num_steps = point_data.shape
-        dt = self.time_stepper.dt
-        time_array = np.arange(num_steps) * dt 
+        dt = self.time_stepper.dt * 10
+        time_array = np.arange(num_steps) * dt
     
         fig, axes = plt.subplots(num_points, 1, figsize=(10, 4 * num_points), sharex=True)
     
