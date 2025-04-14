@@ -41,10 +41,10 @@ class LinearAcoustics:
         self.source_center = np.array([0.5, 0.5, 0.0])
         self.source_radius = 0.02
         self.source_frequency = 10  # Hz
-        self.source_duration = 1 / self.source_frequency
-        self.source_duration = 0.070
+        self.source_duration = (1 / self.source_frequency) / 2
         self.source_amplitude = 10
         self.damping_coefficient =  20.0
+        self.surface_impedance = 3 *1.5
         self.max_speed = np.max(self.mesh.speed)
         self.set_initial_conditions()
 
@@ -71,16 +71,6 @@ class LinearAcoustics:
             x0, y0, z0 = center
             # define pressure field to be a gaussian pulse 
             self.p = 10*np.exp(-((x - x0)**2 + (y - y0)**2 + (z - z0)**2) / (2 * sigma**2))
-            #self.p = self.pressure
-            #x_values = np.where(np.abs(self.mesh.x - x0) < 0.02)[1]
-            #y_values = np.where(np.abs(self.mesh.y - y0) < 0.02)[1]
-            #z_values = np.where(np.abs(self.mesh.z - z0) < 0.04)[1]
-            #xy_values = np.intersect1d(x_values, y_values)
-            #xyz_values = np.intersect1d(xy_values, z_values)
-            #source_cell = xyz_values[0]
-            #source_node = 2
-            #self.p[source_node, source_cell] = 10
-
 
     def _reshape_to_rectangular(self, du, dv, dw, dp):
         # reshape jump matrices
@@ -105,23 +95,37 @@ class LinearAcoustics:
         rho_p, rho_m, c_p, c_m = self._reshape_to_rectangular(rho_p, rho_m, c_p, c_m)
         return rho_p, rho_m, c_p, c_m
 
-   # def _get_amplitude(self, time):
-   #     # Get acmplitude
-   #     if time >= self.source_duration:
-   #         # exponentially decay signal to kill it
-   #         exp_decay = np.exp(-self.damping_coefficient* (time - self.source_duration))
-   #         amplitude = self.source_amplitude * exp_decay 
-   #     else:
-   #         # apply signal as normal
-   #         amplitude = self.source_amplitude
-   #     return amplitude
     def _get_amplitude(self, time):
-        # Hann window envelope 
-        T = self.source_duration
-        envelope = 0.5 * (1 - np.cos(2 * np.pi * time / T))  # Hann window
+        # Gaussian envelope
+        t0 = 0.5 * self.source_duration  # Center the Gaussian in the middle of the pulse duration
+        sigma = self.source_duration / 6  # Controls pulse width
+        envelope = np.exp(-((time - t0) ** 2) / (2 * sigma ** 2))
         amplitude = self.source_amplitude * envelope
         return amplitude
 
+    def _apply_source_boundary_condition(self, time, p_p):
+        omega = 2 * np.pi * self.source_frequency
+        amplitude = self._get_amplitude(time)
+        source_pressure = amplitude * np.sin(omega * time)
+        
+        exterior_values = self.mesh.exterior_face_node_indices
+        boundary = self.mesh.boundary_face_node_indices
+
+        # Get global boundary face node coordinates
+        x_b = self.mesh.x.ravel(order='F')[exterior_values][boundary]
+        y_b = self.mesh.y.ravel(order='F')[exterior_values][boundary]
+        z_b = self.mesh.z.ravel(order='F')[exterior_values][boundary]
+            
+        # Find nodes within circular source region
+        in_source = ((x_b - self.source_center[0])**2 +
+                     (y_b - self.source_center[1])**2 < self.source_radius**2) & \
+                     (np.abs(z_b - self.source_center[2]) < 1e-6)
+            
+        # Overwrite the pressure with sinusoidal source
+        p_p[boundary[in_source]] = source_pressure
+        return p_p
+
+ 
     def _apply_boundary_conditions(self, time):
         # indices for interior and exterior values
         interior_values = self.mesh.interior_face_node_indices
@@ -151,34 +155,53 @@ class LinearAcoustics:
         ndotum = nx[boundary]* u_m[boundary] + ny[boundary] * v_m[boundary] + nz[boundary] * w_m[boundary]
 
         # calculate velocity and pressure on external boundary cells
-        u_p[boundary] = u_m[boundary] - 2.0 * (ndotum) * nx[boundary]
-        v_p[boundary] = v_m[boundary] - 2.0 * (ndotum) * ny[boundary]
-        w_p[boundary] = w_m[boundary] - 2.0 * (ndotum) * nz[boundary]
-        p_p[boundary] = p_m[boundary]
+        #u_p[boundary] = u_m[boundary] - 2.0 * (ndotum) * nx[boundary]
+        #v_p[boundary] = v_m[boundary] - 2.0 * (ndotum) * ny[boundary]
+        #w_p[boundary] = w_m[boundary] - 2.0 * (ndotum) * nz[boundary]
+        #p_p[boundary] = p_m[boundary]
 
-        if time < self.source_duration:
-            omega = 2 * np.pi * self.source_frequency
-            amplitude = self._get_amplitude(time)
-            source_pressure = amplitude * np.sin(omega * time)
+        # compute boundary pressure using impedance: p = Z * v_n
+        p_p[boundary] = self.surface_impedance * ndotum
+        
+        # compute reflected normal velocity using p_p = Z * v_n => solve for v_n
+        ndotup = p_p[boundary] / self.surface_impedance
+        
+        # convert normal velocity to components
+        u_p[boundary] = u_m[boundary] + (ndotup - ndotum) * nx[boundary]
+        v_p[boundary] = v_m[boundary] + (ndotup - ndotum) * ny[boundary]
+        w_p[boundary] = w_m[boundary] + (ndotup - ndotum) * nz[boundary]
 
-            # Get global boundary face node coordinates
-            x_b = self.mesh.x.ravel(order='F')[exterior_values][boundary]
-            y_b = self.mesh.y.ravel(order='F')[exterior_values][boundary]
-            z_b = self.mesh.z.ravel(order='F')[exterior_values][boundary]
-            
-            # Find nodes within circular source region
-            in_source = ((x_b - self.source_center[0])**2 +
-                         (y_b - self.source_center[1])**2 < self.source_radius**2) & \
-                         (np.abs(z_b - self.source_center[2]) < 1e-6)
-            
-            # Overwrite the pressure with sinusoidal source
-            p_p[boundary[in_source]] = source_pressure
-            
+        # apply the source boundary term if source is still on
+        if time <= self.source_duration:
+            p_p = self._apply_source_boundary_condition(time, p_p)
+           
         # reshape for matrix-matrix multiplication
         u_m, v_m, w_m, p_m = self._reshape_to_rectangular(u_m, v_m, w_m, p_m)
         u_p, v_p, w_p, p_p = self._reshape_to_rectangular(u_p, v_p, w_p, p_p)
         return u_p, v_p, w_p, p_p, u_m, v_m, w_m, p_m 
 
+    def _compute_homogeneous_material_flux(self):
+        # homogeneous material fluxes
+        flux_p = 0.5 * ((ndotup - ndotum) - (p_p - p_m))
+        flux_u = 0.5 * (self.mesh.nx * ((p_p - p_m) - (ndotup - ndotum)))
+        flux_v = 0.5 * (self.mesh.ny * ((p_p - p_m) - (ndotup - ndotum)))
+        flux_w = 0.5 * (self.mesh.nz * ((p_p - p_m) - (ndotup - ndotum)))
+
+    def _compute_upwind_flux(self):
+        # RH-condition flux from Wenzhong Cao 2024 - Acoustic wave simulation in strongly heterogeneous...
+        Z_p = rho_p * c_p
+        Z_m = rho_m * c_m
+        normal_vel_jump = ndotup - ndotum
+        pressure_jump = p_p - p_m
+
+        numerator = pressure_jump - Z_p * normal_vel_jump
+        denominator = Z_p + Z_m
+        correction = numerator / denominator
+
+        flux_p = Z_m * (-ndotum - correction)
+        flux_u = self.mesh.nx * (-(p_m / rho_m) + c_m * correction)
+        flux_v = self.mesh.ny * (-(p_m / rho_m) + c_m * correction)
+        flux_w = self.mesh.nz * (-(p_m / rho_m) + c_m * correction)
 
     def compute_rhs(self, u=None, v=None, w=None, p=None, time=0.0):
         """
@@ -231,12 +254,6 @@ class LinearAcoustics:
         ndotum = self.mesh.nx * u_m + self.mesh.ny * v_m + self.mesh.nz * w_m
         ndotup = self.mesh.nx * u_p + self.mesh.ny * v_p + self.mesh.nz * w_p
 
-        # homogeneous material fluxes
-        #flux_p = 0.5 * ((ndotup - ndotum) - (p_p - p_m))
-        #flux_u = 0.5 * (self.mesh.nx * ((p_p - p_m) - (ndotup - ndotum)))
-        #flux_v = 0.5 * (self.mesh.ny * ((p_p - p_m) - (ndotup - ndotum)))
-        #flux_w = 0.5 * (self.mesh.nz * ((p_p - p_m) - (ndotup - ndotum)))
-
         # get max speed for every interface
         mu = np.maximum(c_p, c_m)
 
@@ -251,22 +268,6 @@ class LinearAcoustics:
         flux_u = 0.5 * (self.mesh.nx * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
         flux_v = 0.5 * (self.mesh.ny * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
         flux_w = 0.5 * (self.mesh.nz * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
-
-        # compute fluxes
-        # RH-condition flux from Wenzhong Cao 2024 - Acoustic wave simulation in strongly heterogeneous...
-        #Z_p = rho_p * c_p
-        #Z_m = rho_m * c_m
-        #normal_vel_jump = ndotup - ndotum
-        #pressure_jump = p_p - p_m
-
-        #numerator = pressure_jump - Z_p * normal_vel_jump
-        #denominator = Z_p + Z_m
-        #correction = numerator / denominator
-
-        #flux_p = Z_m * (-ndotum - correction)
-        #flux_u = self.mesh.nx * (-(p_m / rho_m) + c_m * correction)
-        #flux_v = self.mesh.ny * (-(p_m / rho_m) + c_m * correction)
-        #flux_w = self.mesh.nz * (-(p_m / rho_m) + c_m * correction)
 
         ## get necessary matricies for integral computation
         face_scale = self.mesh.surface_to_volume_jacobian

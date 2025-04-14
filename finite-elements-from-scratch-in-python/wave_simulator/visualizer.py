@@ -255,10 +255,10 @@ class Visualizer:
         self.plotter.add_points(
             node_coordinates,
             scalars=field,
-            cmap="viridis",
+            cmap="seismic",
             #opacity='linear',
             #opacity=opacity,
-            clim=[-1,1],
+            clim=[-0.1, 0.1],
             opacity=[0.7, 0.5, 0.5, 0, 0.5, 0.7, 0.9],
             point_size=10,
             render_points_as_spheres=True
@@ -445,7 +445,7 @@ class Visualizer:
             #opacity=np.abs(cell_averages),
             #opacity=[0.9, 0.7, 0.5, 0.5,0.3, 0, 0.3, 0.5, 0.5, 0.7, 0.9],
             opacity=[0.9, 0.7, 0.5,  0, 0.5, 0.7, 0.9],
-            clim=[-1,1],
+            clim=[-0.1,0.1],
             cmap='seismic',
             smooth_shading=True
         )

@@ -9,7 +9,7 @@ from wave_simulator.time_steppers import LowStorageRungeKutta
 from wave_simulator.visualizer import Visualizer
 
 # retrieve simulator object
-file_path = f'./outputs/data/t_00000400.pkl'
+file_path = f'./outputs/data/t_00003000.pkl'
 with open(file_path, 'rb') as file:
     simulator = pickle.load(file)
 
@@ -23,8 +23,8 @@ visualizer._show_grid()
 #visualizer.save_to_vtk(pressure_field, 50)
 visualizer.plot_tracked_points(simulator.point_data, simulator.tracked_points)
 #visualizer.add_field_3d(pressure_field, resolution=50)
-visualizer.add_cell_averages(pressure_field)
+#visualizer.add_cell_averages(pressure_field)
 #visualizer.add_inclusion_boundary()
-#visualizer.add_nodes_3d(pressure_field)
+visualizer.add_nodes_3d(pressure_field)
 #visualizer.add_wave_speed()
 visualizer.show()
