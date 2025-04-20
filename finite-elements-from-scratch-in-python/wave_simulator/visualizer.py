@@ -258,7 +258,7 @@ class Visualizer:
             cmap="seismic",
             #opacity='linear',
             #opacity=opacity,
-            clim=[-0.1, 0.1],
+            clim=[-10, 10],
             opacity=[0.7, 0.5, 0.5, 0, 0.5, 0.7, 0.9],
             point_size=10,
             render_points_as_spheres=True
@@ -445,7 +445,7 @@ class Visualizer:
             #opacity=np.abs(cell_averages),
             #opacity=[0.9, 0.7, 0.5, 0.5,0.3, 0, 0.3, 0.5, 0.5, 0.7, 0.9],
             opacity=[0.9, 0.7, 0.5,  0, 0.5, 0.7, 0.9],
-            clim=[-0.1,0.1],
+            clim=[-2,2],
             cmap='seismic',
             smooth_shading=True
         )
@@ -577,26 +577,52 @@ class Visualizer:
 
     def add_inclusion_boundary(self):
         # Define the inclusion vertices
-        vertices = np.array([
-            [0.1, 0.1, 0.1], [0.1, 0.1, 0.9], [0.1, 0.9, 0.1], [0.1, 0.9, 0.9],
-            [0.9, 0.1, 0.1], [0.9, 0.1, 0.9], [0.9, 0.9, 0.1], [0.9, 0.9, 0.9]
-        ])
+        #inner_dim = 0.025
+        #outer_dim = 0.25 - inner_dim
+        #vertices = np.array([
+        #    [inner_dim, inner_dim, inner_dim],
+        #    [inner_dim, inner_dim, outer_dim],
+        #    [inner_dim, outer_dim, inner_dim],
+        #    [inner_dim, outer_dim, outer_dim],
+        #    [outer_dim, inner_dim, inner_dim],
+        #    [outer_dim, inner_dim, outer_dim],
+        #    [outer_dim, outer_dim, inner_dim],
+        #    [outer_dim, outer_dim, outer_dim]
+        #])
+        #
+        ## Define the edges as pairs of vertex indices
+        #edges = [
+        #    (0, 1), (0, 2), (0, 4),
+        #    (1, 3), (1, 5),
+        #    (2, 3), (2, 6),
+        #    (3, 7),
+        #    (4, 5), (4, 6),
+        #    (5, 7),
+        #    (6, 7)
+        #]
+        #
+        ## Plot each edge
+        #for edge in edges:
+        #    line = pv.Line(vertices[edge[0]], vertices[edge[1]])
+        #    self.plotter.add_mesh(line, color="black", line_width=2)
         
-        # Define the edges as pairs of vertex indices
-        edges = [
-            (0, 1), (0, 2), (0, 4),
-            (1, 3), (1, 5),
-            (2, 3), (2, 6),
-            (3, 7),
-            (4, 5), (4, 6),
-            (5, 7),
-            (6, 7)
-        ]
-        
-        # Plot each edge
-        for edge in edges:
-            line = pv.Line(vertices[edge[0]], vertices[edge[1]])
-            self.plotter.add_mesh(line, color="black", line_width=2)
+        cube = pv.Cube(bounds=(0.025, 0.225, 0.025, 0.225, 0.025, 0.225))
+        self.plotter.add_mesh(cube,
+                              color="#ababb3",
+                              opacity=0.1,
+                              show_edges=True)
+
+        # Add the spherical inclusion
+        sphere_center = (0.125, 0.125, 0.125)
+        sphere_radius = 0.04
+        sphere = pv.Sphere(center=sphere_center,
+                           radius=sphere_radius,
+                           theta_resolution=10,
+                           phi_resolution=10)
+        self.plotter.add_mesh(sphere,
+                              color="#ccdee6",
+                              opacity=0.1,
+                              show_edges=True)
 
     def enter_4th_dimension(self, resolution=50):
         """ Add a 3D field visualization tothe plotter """
@@ -621,6 +647,22 @@ class Visualizer:
     def save(self):
         file_name=f't_{self.time_stepper.current_time_step:0>8}.png'
         self.plotter.screenshot(f'./outputs/images/{file_name}')
+
+    def plot_energy(self, energy_data, kinetic_data, potential_data, interval):
+        num_steps = len(energy_data)
+        dt = self.time_stepper.dt * interval
+        time_array = np.arange(num_steps) * dt
+        fig, ax = plt.subplots()
+        ax.plot(time_array, energy_data, marker='o', label='Total Energy')
+        ax.plot(time_array, kinetic_data, marker='x', label='KE')
+        ax.plot(time_array, potential_data, marker='*', label='PE')
+        ax.legend()
+        ax.set_title(f'Global Energy (centered Gaussian pulse, reflective boundary conditions)')
+        ax.set_ylabel('Energy')
+        ax.set_xlabel('Time')
+        ax.grid(True, alpha=0.3)
+        plt.show()
+        
 
     def plot_tracked_points(self, point_data, tracked_points):
         num_points, num_steps = point_data.shape

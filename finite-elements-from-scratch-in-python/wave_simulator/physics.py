@@ -6,49 +6,29 @@ from scipy.stats import mode
 class LinearAcoustics:
     def __init__(self, mesh: Mesh3d):
         self.mesh = mesh
-        num_cells = mesh.num_cells
-        #num_faces = mesh.reference_element.num_faces
-        nodes_per_cell = mesh.reference_element.nodes_per_cell
-        #nodes_per_face = mesh.reference_element.nodes_per_face
-        # define pressure and velocity fields over global nodes
         #self.u = np.zeros((nodes_per_cell, num_cells)) # x component of velocity field 
         #self.v = np.zeros((nodes_per_cell, num_cells)) # y component of velocity field
         #self.w = np.zeros((nodes_per_cell, num_cells)) # z component of velocity field
         #self.p = np.zeros((nodes_per_cell, num_cells)) # pressure field 
-        #self.density = np.ones((nodes_per_cell, num_cells)) * 1.2 # kg/m^3 density at each node
-        #self.speed = np.ones((nodes_per_cell, num_cells)) * 343 # m/s wavespeed at each node
         ## define jumps in fields across faces nodes
         #self.du = np.zeros((nodes_per_face * num_faces, num_cells))
         #self.dv = np.zeros((nodes_per_face * num_faces, num_cells))
         #self.dw = np.zeros((nodes_per_face * num_faces, num_cells))
         #self.dp = np.zeros((nodes_per_face * num_faces, num_cells))
-        #self.density = np.ones((nodes_per_cell, num_cells)) * 1.4#1900 # kg/m^3 density of fat
-        #self.speed = np.ones((nodes_per_cell, num_cells)) * 1#1450 # m/s wavespeed of fat
-        #self.speed[(np.abs(self.mesh.x -0.5) < 0.1) & (np.abs(self.mesh.y - 0.5) < 0.1) & (np.abs(self.mesh.z -0.5) < 0.1)] = 4 #4080  # wavespeed in bone
-        #self.density[(np.abs(self.mesh.x -0.5) < 0.1) & (np.abs(self.mesh.y - 0.5) < 0.1) & (np.abs(self.mesh.z -0.5) < 0.1)] = 3#1000 # density of bone
-        #self.speed[self.mesh.z < 0.5] = 2
-        #self.density[self.mesh.z < 0.5] = 3
-        # Calculate the mean of each column
-        #average_cell_speed = np.mean(self.speed, axis=0)
-        #average_cell_density = np.mean(self.density, axis=0)
-        #average_cell_speed = mode(self.speed, axis=0).mode  # Mode of speed for each cell
-        #average_cell_density = mode(self.density, axis=0).mode  # Mode of density for each cell
-        # Replace each column with its mean value
-        #self.density = np.tile(average_cell_speed, (self.density.shape[0], 1))
-        #self.speed = np.tile(mesh.speed, (mesh.reference_element.nodes_per_cell, 1))
-        #self.density = np.tile(mesh.density, (mesh.reference_element.nodes_per_cell, 1))
-        #self.pressure = np.tile(mesh.pressure, (mesh.reference_element.nodes_per_cell, 1))
-        self.source_center = np.array([0.5, 0.5, 0.0])
+        self.source_center = np.array([0.125, 0.125, 0.0])
         self.source_radius = 0.02
-        self.source_frequency = 10  # Hz
-        self.source_duration = (1 / self.source_frequency) / 2
-        self.source_amplitude = 10
-        self.damping_coefficient =  20.0
-        self.surface_impedance = 3 *1.5
+        self.source_frequency = 10000  # Hz
+        self.source_duration = (1 / self.source_frequency)
+        self.source_amplitude = 100000
+        # air density = 1.293 earthdata.nasa.gov/topics/atmosphere/air-mass-density
+        # air speed = 343
+        #self.surface_impedance = 1.293 * (343**2) 
+        # totally reflecting
+        self.surface_impedance = 0
         self.max_speed = np.max(self.mesh.speed)
         self.set_initial_conditions()
 
-    def set_initial_conditions(self, kind="none"):
+    def set_initial_conditions(self, kind="gaussian"):
         """Set initial conditions for testing the wave propagation."""
         # initialize zero value velocity and pressure fields
         num_cells = self.mesh.num_cells
@@ -66,8 +46,9 @@ class LinearAcoustics:
         # set fields
         if kind == "gaussian":
             # Gaussian pulse centered at (x0, y0, z0)
+            #center=(0.1250, 0.1250, 0.1250)
             center=(0.50, 0.50, 0.50)
-            sigma=0.1
+            sigma=0.05
             x0, y0, z0 = center
             # define pressure field to be a gaussian pulse 
             self.p = 10*np.exp(-((x - x0)**2 + (y - y0)**2 + (z - z0)**2) / (2 * sigma**2))
@@ -154,25 +135,27 @@ class LinearAcoustics:
         # compute normal velocity on interior boundary cells
         ndotum = nx[boundary]* u_m[boundary] + ny[boundary] * v_m[boundary] + nz[boundary] * w_m[boundary]
 
-        # calculate velocity and pressure on external boundary cells
-        #u_p[boundary] = u_m[boundary] - 2.0 * (ndotum) * nx[boundary]
-        #v_p[boundary] = v_m[boundary] - 2.0 * (ndotum) * ny[boundary]
-        #w_p[boundary] = w_m[boundary] - 2.0 * (ndotum) * nz[boundary]
-        #p_p[boundary] = p_m[boundary]
+        # compute perfectly reflecting boundary conditions
+        u_p[boundary] = u_m[boundary] - 2.0 * (ndotum) * nx[boundary]
+        v_p[boundary] = v_m[boundary] - 2.0 * (ndotum) * ny[boundary]
+        w_p[boundary] = w_m[boundary] - 2.0 * (ndotum) * nz[boundary]
+        p_p[boundary] = p_m[boundary]
 
-        # compute boundary pressure using impedance: p = Z * v_n
-        p_p[boundary] = self.surface_impedance * ndotum
+        # compute boundary pressure using impedance: p = Z * u_n
+        #p_p[boundary] = self.surface_impedance * ndotum
         
-        # compute reflected normal velocity using p_p = Z * v_n => solve for v_n
-        ndotup = p_p[boundary] / self.surface_impedance
+        # compute reflected normal velocity using p_p = Z * u_n => solve for u_n
+        # ndotup = p_p[boundary] / self.surface_impedance
+        # in this case I can just set u_n+ = u_n-
+        #ndotup = ndotum
         
         # convert normal velocity to components
-        u_p[boundary] = u_m[boundary] + (ndotup - ndotum) * nx[boundary]
-        v_p[boundary] = v_m[boundary] + (ndotup - ndotum) * ny[boundary]
-        w_p[boundary] = w_m[boundary] + (ndotup - ndotum) * nz[boundary]
+        #u_p[boundary] = u_m[boundary] + (ndotup - ndotum) * nx[boundary]
+        #v_p[boundary] = v_m[boundary] + (ndotup - ndotum) * ny[boundary]
+        #w_p[boundary] = w_m[boundary] + (ndotup - ndotum) * nz[boundary]
 
         # apply the source boundary term if source is still on
-        if time <= self.source_duration:
+        if time < self.source_duration:
             p_p = self._apply_source_boundary_condition(time, p_p)
            
         # reshape for matrix-matrix multiplication
@@ -275,7 +258,7 @@ class LinearAcoustics:
 
         ## inverse density and bulk modulus (rho c^2)
         inv_rho = 1.0 / self.mesh.density
-        bulk = self.mesh.density * self.mesh.speed ** 2
+        bulk = self.mesh.density * (self.mesh.speed ** 2)
 
         self.rhs_u = -inv_rho * dpdx - lift @ (face_scale * flux_u)
         self.rhs_v = -inv_rho * dpdy - lift @ (face_scale * flux_v)

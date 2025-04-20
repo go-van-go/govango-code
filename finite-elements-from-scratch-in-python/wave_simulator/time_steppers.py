@@ -39,7 +39,7 @@ class LowStorageRungeKutta:
         self.damping_coefficient = 20.0 # for exponential damping
         self.gaussian_decay_scale = 0.001 # for gaussian damping
         self.tau = (3 - np.sqrt(3))/6
-        self._get_source_nodes()
+        #self._get_source_nodes()
         self._compute_time_step_size_hesthaven()
         n_cycles = 1
         samples_per_cycle = int(round(1 / (self.dt * self.source_frequency)))
@@ -47,25 +47,14 @@ class LowStorageRungeKutta:
         #self.source_duration = 0.01
         self._log_info()
 
-    #def _compute_time_step_size_hesthaven(self):
-    #    n = self.physics.mesh.reference_element.n
-    #    surface_to_volume_jacobian = self.physics.mesh.surface_to_volume_jacobian
-    #    c = self.physics.max_speed
-    #    dt = 1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n * c) 
-    #    # correct dt for integer # of time steps
-    #    self.num_time_steps = int(np.ceil(self.t_final/ dt))
-    #    self.dt = (self.t_final / self.num_time_steps)
-
     def _compute_time_step_size_hesthaven(self):
         n = self.physics.mesh.reference_element.n
         surface_to_volume_jacobian = self.physics.mesh.surface_to_volume_jacobian
         c = self.physics.max_speed
-    
         dt = 1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n * c)
-    
-        # Update number of time steps and corrected dt
-        self.num_time_steps = int(np.ceil(self.t_final / dt))
-        self.dt = self.t_final / self.num_time_steps
+        # correct dt for integer # of time steps
+        self.num_time_steps = int(np.ceil(self.t_final/ dt))
+        self.dt = (self.t_final / self.num_time_steps)
 
     def _compute_time_step_size_xijun(self):
         """

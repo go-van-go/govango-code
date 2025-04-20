@@ -78,12 +78,21 @@ class Mesh3d:
         self.cell_to_vertices = node_tags.reshape(-1, 4).astype(int) - 1
 
     def _get_material_info(self):
-        # inclusion is first
-        speed = [1.5 , 3.0] # m/s (bone is around 3000)
-        #speed = [1500 , 3000] # m/s (bone is around 3000)
-        density = [1.0, 1.5] # kg/m^3 (bone is around 2000
-        #density = [1000, 1500] # kg/m^3 (bone is around 2000
-        #pressure = [1,0]
+        # Material Speed List (m/s)
+        # bone = 2600 (Thomas Riis 2021)
+        # EcoFlex00-10 = 974 (Cafarelli 2016)
+        # Polyurethane rubber = 1398
+        # Material Density List (kg/m^3)
+        # bone = 2000 (Hamed Abdi 2024)
+        # EcoFlex = 1063
+        # Polyurethane rubber = 1016
+
+        # input order: gray matter, bone, white matter 
+        speed = [1398 , 2600, 974] # m/s
+        density = [1016, 2000, 1063] # kg/m^3
+        #speed = [1.5 , 3.0] # m/s
+        #density = [1.0, 1.5] # kg/m^3
+
         dim = 3
         physical_groups = gmsh.model.getPhysicalGroups(dim)
         #self.speed = np.ones((self.num_cells)) * 1# m/s
