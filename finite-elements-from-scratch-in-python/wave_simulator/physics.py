@@ -18,7 +18,7 @@ class LinearAcoustics:
         self.source_center = np.array([0.125, 0.125, 0.0])
         self.source_radius = 0.02
         self.source_frequency = 10000  # Hz
-        self.source_duration = (1 / self.source_frequency)
+        self.source_duration = 0 #(1 / self.source_frequency)
         self.source_amplitude = 100000
         # air density = 1.293 earthdata.nasa.gov/topics/atmosphere/air-mass-density
         # air speed = 343
@@ -47,11 +47,12 @@ class LinearAcoustics:
         if kind == "gaussian":
             # Gaussian pulse centered at (x0, y0, z0)
             #center=(0.1250, 0.1250, 0.1250)
-            center=(0.50, 0.50, 0.50)
+            center=(0.50, 0.50, 0.750)
             sigma=0.05
             x0, y0, z0 = center
             # define pressure field to be a gaussian pulse 
-            self.p = 10*np.exp(-((x - x0)**2 + (y - y0)**2 + (z - z0)**2) / (2 * sigma**2))
+            amplitude = 100
+            self.p = amplitude*np.exp(-((x - x0)**2 + (y - y0)**2 + (z - z0)**2) / (2 * sigma**2))
 
     def _reshape_to_rectangular(self, du, dv, dw, dp):
         # reshape jump matrices
@@ -171,7 +172,9 @@ class LinearAcoustics:
         flux_w = 0.5 * (self.mesh.nz * ((p_p - p_m) - (ndotup - ndotum)))
 
     def _compute_upwind_flux(self):
-        # RH-condition flux from Wenzhong Cao 2024 - Acoustic wave simulation in strongly heterogeneous...
+        # RH-condition flux from Wenzhong Cao 2024 -
+        # Acoustic wave simulation in strongly heterogeneous...
+        # weak form flux
         Z_p = rho_p * c_p
         Z_m = rho_m * c_m
         normal_vel_jump = ndotup - ndotum
@@ -186,6 +189,21 @@ class LinearAcoustics:
         flux_v = self.mesh.ny * (-(p_m / rho_m) + c_m * correction)
         flux_w = self.mesh.nz * (-(p_m / rho_m) + c_m * correction)
 
+    def _compute_xijun_he_flux(self):
+        # flux from Xiun He 2025 - An effective discontinuous galerkin
+        # weak form flux
+        flux_p = 0.5 * (
+            (rho_p * c_p**2 * u_p - rho_m * c_m**2 * u_m) * self.mesh.nx + \
+            (rho_p * c_p**2 * v_p - rho_m * c_m**2 * v_m) * self.mesh.ny + \
+            (rho_p * c_p**2 * w_p - rho_m * c_m**2 * w_m) * self.mesh.nz - \
+            mu * (p_p - p_m)
+        )
+        flux_u = 0.5 * (self.mesh.nx * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
+        flux_v = 0.5 * (self.mesh.ny * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
+        flux_w = 0.5 * (self.mesh.nz * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
+
+
+    
     def compute_rhs(self, u=None, v=None, w=None, p=None, time=0.0):
         """
         flux function based on Xijun He et al. 2025
@@ -240,17 +258,20 @@ class LinearAcoustics:
         # get max speed for every interface
         mu = np.maximum(c_p, c_m)
 
+        self._calculate_upwind_flux()
+
         # compute fluxes
+        # we are using the weak form of the flux
         # flux from Xiun He 2025 - An effective discontinuous galerkin
-        flux_p = 0.5 * (
-            (rho_p * c_p**2 * u_p - rho_m * c_m**2 * u_m) * self.mesh.nx + \
-            (rho_p * c_p**2 * v_p - rho_m * c_m**2 * v_m) * self.mesh.ny + \
-            (rho_p * c_p**2 * w_p - rho_m * c_m**2 * w_m) * self.mesh.nz - \
-            mu * (p_p - p_m)
-        )
-        flux_u = 0.5 * (self.mesh.nx * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
-        flux_v = 0.5 * (self.mesh.ny * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
-        flux_w = 0.5 * (self.mesh.nz * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
+        #flux_p = 0.5 * (
+        #    (rho_p * c_p**2 * u_p - rho_m * c_m**2 * u_m) * self.mesh.nx + \
+        #    (rho_p * c_p**2 * v_p - rho_m * c_m**2 * v_m) * self.mesh.ny + \
+        #    (rho_p * c_p**2 * w_p - rho_m * c_m**2 * w_m) * self.mesh.nz - \
+        #    mu * (p_p - p_m)
+        #)
+        #flux_u = 0.5 * (self.mesh.nx * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
+        #flux_v = 0.5 * (self.mesh.ny * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
+        #flux_w = 0.5 * (self.mesh.nz * (((p_p / rho_p) - (p_m / rho_m)) - mu * (ndotup - ndotum)))
 
         ## get necessary matricies for integral computation
         face_scale = self.mesh.surface_to_volume_jacobian

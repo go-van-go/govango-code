@@ -51,7 +51,7 @@ class LowStorageRungeKutta:
         n = self.physics.mesh.reference_element.n
         surface_to_volume_jacobian = self.physics.mesh.surface_to_volume_jacobian
         c = self.physics.max_speed
-        dt = 1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n * c)
+        dt = 0.8 * (1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n * c))
         # correct dt for integer # of time steps
         self.num_time_steps = int(np.ceil(self.t_final/ dt))
         self.dt = (self.t_final / self.num_time_steps)
@@ -163,7 +163,6 @@ class LowStorageRungeKutta:
         K_w = LC_w + tau * dt * LC2_w + eta1 * (tau * dt)**2 * LC3_w
         K_p = LC_p + tau * dt * LC2_p + eta1 * (tau * dt)**2 * LC3_p
 
-        #time = self.t + self.tau * self.dt
         #K_p  = self._apply_source_term(K_p, t)
 
         # compute Kbar
@@ -182,7 +181,6 @@ class LowStorageRungeKutta:
         Kbar_p = LT_p + tau * dt * LT2_p + eta2 * (tau * dt)**2 * LT3_p
 
         # apply source term
-        #time = self.t + (1 - self.tau) * self.dt
         #Kbar_p = self._apply_source_term(Kbar_p, t)
 
         # update fields

@@ -96,7 +96,8 @@ class Simulator:
         self.visualizer.plotter.clear()
         self.visualizer._show_grid()
         self.visualizer.add_inclusion_boundary()
-        self.visualizer.add_cell_averages(self.time_stepper.physics.p)
+        #self.visualizer.add_cell_averages(self.time_stepper.physics.p)
+        self.visualizer.add_nodes_3d(self.time_stepper.physics.p)
         self.visualizer.save()
 
     def _save_to_vtk(self, field, resolution=40):
@@ -118,36 +119,46 @@ class Simulator:
         # uT M u = || u ||^2
         # get nodal values
         #p2 = self.physics.p.T * self.mesh.reference_element_operators.mass_matrix * self.physics.p
-        pressure = self.physics.p
+        j = self.mesh.jacobians  # shape (K,)
+        p = self.physics.p
         u = self.physics.u
         v = self.physics.v
         w = self.physics.w
         mass = self.mesh.reference_element_operators.mass_matrix
-        rho = np.mean(self.mesh.density, axis=0)
-        c = np.mean(self.mesh.speed, axis=0)
-        #c = self.mesh.speed
-        inv_bulk = 1.0 / (rho * c**2)
-        j = self.mesh.jacobians
-
+        num_cells = self.mesh.num_cells
+        #rho = np.mean(self.mesh.density, axis=0)
+        #c = np.mean(self.mesh.speed, axis=0)
+        rho = self.mesh.density[0,:]  # shape (Np, K)
+        c = self.mesh.speed[0,:]      # shape (Np, K)
+        inv_bulk = 1.0 / (rho * (c**2))  # shape (Np, K)
+        potential = np.array([p[:, i].T @ mass @ p[:, i] for i in range(num_cells)])
+        potential = 0.5 * inv_bulk * j * potential
         # potential energy: (1/2) * p^2 / (rho * c^2)
-        Mp = mass @ pressure  # shape (10, 47021)
-        potential = np.einsum('ij,ij->j', pressure, Mp)  # dot product along columns
-        potential = j * (0.5 * potential * inv_bulk)
+        #Mp = mass @ pressure
+        #Mp = mass @ pressure   # shape (Np, K)
+        #potential =  np.einsum('ij,ij->j', pressure, Mp)  # dot product along columns
+        ##potential = j * (0.5 * potential * inv_bulk)
+        #potential = (0.5 * inv_bulk * potential)
         self.potential_data[self.energy_index] = np.sum(potential)
  
         # kinetic energy
-        #u2 = self.physics.u**2
-        Mu = mass @ u # shape (10, 47021)
-        kinetic_u = np.einsum('ij,ij->j', u, Mu)  # dot product along columns
-
-        Mv = mass @ v # shape (10, 47021)
-        kinetic_v = np.einsum('ij,ij->j', v, Mv)  # dot product along columns
-
-        Mw = mass @ w # shape (10, 47021)
-        kinetic_w = np.einsum('ij,ij->j', w, Mw)  # dot product along columns
+        #Mu = mass @ u # shape (10, 47021)
+        #Mv = mass @ v # shape (10, 47021)
+        #Mw = mass @ w # shape (10, 47021)
+        #Mu = mass @ (u)
+        #Mv = mass @ (v)
+        #Mw = mass @ (w)
+        #kinetic_u = np.einsum('ij,ij->j', u, Mu)  # dot product along columns
+        #kinetic_v = np.einsum('ij,ij->j', v, Mv)  # dot product along columns
+        #kinetic_w = np.einsum('ij,ij->j', w, Mw)  # dot product along columns
 
         # kinetic energy: (1/2) * rho * (u^2 + v^2 + w^2)
-        kinetic = j * (0.5 * rho * (kinetic_u + kinetic_v + kinetic_w))
+        #kinetic = j * (0.5 * rho * (kinetic_u + kinetic_v + kinetic_w))
+        kinetic_u = np.array([u[:, i].T @ mass @ u[:, i] for i in range(num_cells)])
+        kinetic_v = np.array([v[:, i].T @ mass @ v[:, i] for i in range(num_cells)])
+        kinetic_w = np.array([w[:, i].T @ mass @ w[:, i] for i in range(num_cells)])
+
+        kinetic = (0.5 * rho * j * (kinetic_u + kinetic_v + kinetic_w))
         self.kinetic_data[self.energy_index] = np.sum(kinetic)
     
         # integrate over domain using nodal volume weights

@@ -7,11 +7,11 @@ from wave_simulator.simulator import Simulator
 
 # create finite element
 dimension = 3
-polynomial_order = 2 # eta1 and eta2 are defined for N=2
+polynomial_order = 4 # eta1 and eta2 are defined for N=2
 lagrange_element = LagrangeElement(dimension, polynomial_order)
 
 # create mesh
-mesh_file = "./inputs/meshes/skull.msh"
+mesh_file = "./inputs/meshes/split1.msh"
 mesh = Mesh3d(mesh_file, lagrange_element)
 
 # create physics
@@ -19,7 +19,8 @@ physics = LinearAcoustics(mesh)
 
 # create time stepping object 
 t_initial = 0.0
-t_final = 3.0e-4
+#t_final = 3.0e-4
+t_final = 3
 time_stepper = LowStorageRungeKutta(physics, t_initial, t_final)
 
 # initialize simulator object

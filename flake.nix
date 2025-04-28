@@ -17,17 +17,18 @@
             # General packages
               # pkgs.clangd
 	      pkgs.typescript-language-server
-              #  # Python packages
+              # Python packages
               (pkgs.python312.withPackages (python-pkgs: [
-              #  # packages for formatting/ IDE
+              # packages for formatting/ IDE
                 python-pkgs.python-lsp-server
-              #  # packages for code
+              # packages for code
                 python-pkgs.gmsh
 		python-pkgs.pyvista
 		python-pkgs.pytest
 		python-pkgs.numpy
 		python-pkgs.scipy
                 python-pkgs.matplotlib
+		python-pkgs.sympy
               ]))
             ];
 

@@ -249,7 +249,7 @@ class Visualizer:
         
         # Flatten the solution matrix to align with the coordinates
         field = np.ravel(field, order='F')
-        opacity = np.abs(field)
+        #opacity = np.abs(field)
 
         # Add the points to the plot with colors and opacity
         self.plotter.add_points(
