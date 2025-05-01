@@ -119,20 +119,19 @@ class Simulator:
         # uT M u = || u ||^2
         # get nodal values
         #p2 = self.physics.p.T * self.mesh.reference_element_operators.mass_matrix * self.physics.p
-        j = self.mesh.jacobians  # shape (K,)
+        j = self.mesh.jacobians[0,:]  # shape (K,)
         p = self.physics.p
         u = self.physics.u
         v = self.physics.v
         w = self.physics.w
         mass = self.mesh.reference_element_operators.mass_matrix
         num_cells = self.mesh.num_cells
-        #rho = np.mean(self.mesh.density, axis=0)
-        #c = np.mean(self.mesh.speed, axis=0)
         rho = self.mesh.density[0,:]  # shape (Np, K)
         c = self.mesh.speed[0,:]      # shape (Np, K)
         inv_bulk = 1.0 / (rho * (c**2))  # shape (Np, K)
         potential = np.array([p[:, i].T @ mass @ p[:, i] for i in range(num_cells)])
         potential = 0.5 * inv_bulk * j * potential
+        
         # potential energy: (1/2) * p^2 / (rho * c^2)
         #Mp = mass @ pressure
         #Mp = mass @ pressure   # shape (Np, K)

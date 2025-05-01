@@ -249,6 +249,7 @@ class Visualizer:
         
         # Flatten the solution matrix to align with the coordinates
         field = np.ravel(field, order='F')
+        #field[self.mesh.exterior_face_node_indices] = 0
         #opacity = np.abs(field)
 
         # Add the points to the plot with colors and opacity
@@ -258,7 +259,7 @@ class Visualizer:
             cmap="seismic",
             #opacity='linear',
             #opacity=opacity,
-            clim=[-10, 10],
+            clim=[-1000, 1000],
             opacity=[0.7, 0.5, 0.5, 0, 0.5, 0.7, 0.9],
             point_size=10,
             render_points_as_spheres=True
@@ -445,7 +446,7 @@ class Visualizer:
             #opacity=np.abs(cell_averages),
             #opacity=[0.9, 0.7, 0.5, 0.5,0.3, 0, 0.3, 0.5, 0.5, 0.7, 0.9],
             opacity=[0.9, 0.7, 0.5,  0, 0.5, 0.7, 0.9],
-            clim=[-2,2],
+            clim=[-1000,1000],
             cmap='seismic',
             smooth_shading=True
         )
