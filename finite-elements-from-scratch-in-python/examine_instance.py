@@ -9,7 +9,7 @@ from wave_simulator.time_steppers import LowStorageRungeKutta
 from wave_simulator.visualizer import Visualizer
 
 # retrieve simulator object
-file_path = f'./outputs/data/t_00007500.pkl'
+file_path = f'./outputs/data/t_00006700.pkl'
 with open(file_path, 'rb') as file:
     simulator = pickle.load(file)
 

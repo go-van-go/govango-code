@@ -17,7 +17,7 @@ class LinearAcoustics:
         #self.dp = np.zeros((nodes_per_face * num_faces, num_cells))
         self.source_center = np.array([0.125, 0.125, 0.0])
         self.source_radius = 0.02
-        self.source_frequency = 40000  # Hz
+        self.source_frequency = 20000  # Hz
         self.source_duration = (1 / self.source_frequency)
         self.source_amplitude = 10000
         # air density = 1.293 earthdata.nasa.gov/topics/atmosphere/air-mass-density
@@ -78,7 +78,7 @@ class LinearAcoustics:
     def _get_amplitude(self, time):
         # Gaussian envelope
         t0 = 0.5 * self.source_duration  # Center the Gaussian in the middle of the pulse duration
-        sigma = self.source_duration / 6  # Controls pulse width
+        sigma = self.source_duration / 14  # Controls pulse width
         envelope = np.exp(-((time - t0) ** 2) / (2 * sigma ** 2))
         amplitude = self.source_amplitude * envelope
         return amplitude
@@ -154,7 +154,7 @@ class LinearAcoustics:
         #w_p[boundary] = w_m[boundary] + (ndotup - ndotum) * nz[boundary]
 
         # apply the source boundary term if source is still on
-        if time < self.source_duration:
+        if time <= self.source_duration:
             p_p = self._apply_source_boundary_condition(time, p_p)
            
         # reshape for matrix-matrix multiplication
@@ -170,30 +170,15 @@ class LinearAcoustics:
         flux_w = 0.5 * (self.mesh.nz * ((p_p - p_m) - (ndotup - ndotum)))
 
     def _compute_upwind_flux(self):
-        # RH-condition flux from Wenzhong Cao 2024 -
-        # Acoustic wave simulation in strongly heterogeneous...
-        # weak form flux
-        #K_p = self.rho_p * self.c_p**2
-        #K_m = self.rho_m * self.c_m**2
-        #Z_p = self.rho_p * self.c_p
-        #Z_m = self.rho_m * self.c_m
-        #normal_vel_jump = self.ndotup - self.ndotum
+        # upwind weak form flux
         normal_vel_jump = self.ndotup - self.ndotum
         pressure_jump = self.p_p - self.p_m
 
-        #numerator = pressure_jump - (Z_p * normal_vel_jump)
-        #denominator = Z_m + Z_p
-        #correction = numerator / denominator
-
-        #self.flux_p = K_m *(self.ndotum - correction)
-        #self.flux_u = self.mesh.nx * ((self.p_m / self.rho_m) - self.c_m * correction)
-        #self.flux_v = self.mesh.ny * ((self.p_m / self.rho_m) - self.c_m * correction)
-        #self.flux_w = self.mesh.nz * ((self.p_m / self.rho_m) - self.c_m * correction)
-        self.flux_p = 0.5 * (self.c_m**2 * self.rho_m * normal_vel_jump - self.c_m * pressure_jump)
+        self.flux_p = 0.5 * (self.c_m**2 * self.rho_m * normal_vel_jump - self.mu * pressure_jump)
         self.flux_u = 0.5 * self.mesh.nx * ((1/self.rho_m) * (self.p_p - self.p_m) - self.c_m * normal_vel_jump)
         self.flux_v = 0.5 * self.mesh.ny * ((1/self.rho_m) * (self.p_p - self.p_m) - self.c_m * normal_vel_jump)
         self.flux_w = 0.5 * self.mesh.nz * ((1/self.rho_m) * (self.p_p - self.p_m) - self.c_m * normal_vel_jump)
-        
+
     def _compute_xijun_he_flux(self):
         # flux from Xiun He 2025 - An effective discontinuous galerkin
         # weak form flux

@@ -88,8 +88,10 @@ class Mesh3d:
         # Polyurethane rubber = 1016
 
         # input order: gray matter, bone, white matter 
-        speed = [1398 , 2600, 974] # m/s
-        density = [1016, 2000, 1063] # kg/m^3
+        #speed = [1398 , 2600, 974] # m/s
+        speed = [2600, 1398, 974] # m/s
+        #density = [1016, 2000, 1063] # kg/m^3
+        density = [2000, 1016, 1063] # kg/m^3
         #speed = [1.5 , 3.0] # m/s
         #density = [1.0, 1.0] # kg/m^3
 

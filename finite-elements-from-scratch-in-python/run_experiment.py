@@ -7,7 +7,7 @@ from wave_simulator.simulator import Simulator
 
 # create finite element
 dimension = 3
-polynomial_order = 4 # eta1 and eta2 are defined for N=2
+polynomial_order = 5 # eta1 and eta2 are defined for N=2
 lagrange_element = LagrangeElement(dimension, polynomial_order)
 
 # create mesh
