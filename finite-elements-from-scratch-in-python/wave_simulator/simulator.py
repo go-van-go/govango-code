@@ -95,7 +95,7 @@ class Simulator:
     def _save_image(self):
         self.visualizer.plotter.clear()
         self.visualizer._show_grid()
-        self.visualizer.add_inclusion_boundary()
+        #self.visualizer.add_inclusion_boundary()
         #self.visualizer.add_cell_averages(self.time_stepper.physics.p)
         self.visualizer.add_nodes_3d(self.time_stepper.physics.p)
         self.visualizer.save()
