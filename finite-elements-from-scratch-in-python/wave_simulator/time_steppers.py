@@ -52,7 +52,7 @@ class LowStorageRungeKutta:
         #surface_to_volume_jacobian = self.physics.mesh.surface_to_volume_jacobian
         c = self.physics.max_speed
         d = self.physics.mesh.smallest_diameter
-        cfl_factor = 1.0
+        cfl_factor = 0.9
         #dt = 1.0 * (1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n * c))
         dt = cfl_factor * (d / (n * n * c))
         # correct dt for integer # of time steps

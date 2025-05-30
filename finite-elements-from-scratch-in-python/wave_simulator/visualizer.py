@@ -259,8 +259,10 @@ class Visualizer:
             cmap="seismic",
             #opacity='linear',
             #opacity=opacity,
-            clim=[-1000, 1000],
-            opacity=[0.7, 0.5, 0.5, 0, 0.5, 0.7, 0.9],
+            #clim=[-150, 150],
+            opacity=[0.9, 0.7, 0.5, 0.5, 0, 0.5, 0.5, 0.7, 0.9],
+            #opacity=[0.01, 0.05, 0.06,  0.08, 0.09, 0.2, 0.3],
+            clim=[-100,100],
             point_size=10,
             render_points_as_spheres=True
         )
@@ -445,9 +447,11 @@ class Visualizer:
             scalars=cell_averages,
             #opacity=np.abs(cell_averages),
             #opacity=[0.9, 0.7, 0.5, 0.5,0.3, 0, 0.3, 0.5, 0.5, 0.7, 0.9],
-            opacity=[0.9, 0.7, 0.5,  0, 0.5, 0.7, 0.9],
-            clim=[-1000,1000],
-            cmap='seismic',
+            #opacity=[0.9, 0.7, 0.5,  0, 0.5, 0.7, 0.9],
+            opacity=[0.01, 0.05, 0.06,  0.08, 0.09, 0.2, 0.3],
+            clim=[0,200],
+            #cmap='seismic',
+            cmap='hsv',
             smooth_shading=True
         )
 
@@ -650,15 +654,15 @@ class Visualizer:
         self.plotter.screenshot(f'./outputs/images/{file_name}')
 
     def plot_energy(self, energy_data, kinetic_data, potential_data, interval):
-        num_steps = len(energy_data)
+        num_steps = len(energy_data)-2
         dt = self.time_stepper.dt * interval
         time_array = np.arange(num_steps) * dt
         fig, ax = plt.subplots()
-        ax.plot(time_array, energy_data, marker='o', label='Total Energy')
-        ax.plot(time_array, kinetic_data, marker='x', label='KE')
-        ax.plot(time_array, potential_data, marker='*', label='PE')
+        ax.plot(time_array, energy_data[:-2], marker='o', label='Total Energy')
+        ax.plot(time_array, kinetic_data[:-2], marker='x', label='KE')
+        ax.plot(time_array, potential_data[:-2], marker='*', label='PE')
         ax.legend()
-        ax.set_title(f'Global Energy (centered Gaussian pulse, reflective boundary conditions)')
+        ax.set_title(f'Global Energy (reflective boundary conditions)')
         ax.set_ylabel('Energy')
         ax.set_xlabel('Time')
         ax.grid(True, alpha=0.3)
@@ -689,6 +693,19 @@ class Visualizer:
         axes[-1].set_xlabel('Time (s)')
     
         plt.tight_layout()
+        plt.show()
+
+    def plot_source(self, source_data):
+        num_steps = len(source_data)
+        dt = self.time_stepper.dt
+        time_array = np.arange(num_steps) * dt
+        fig, ax = plt.subplots()
+        ax.plot(time_array, source_data, marker='o', label='Source')
+        ax.legend()
+        ax.set_title(f'Source Pressure')
+        ax.set_ylabel('Pressure')
+        ax.set_xlabel('Time')
+        ax.grid(True, alpha=0.3)
         plt.show()
 
     def save_to_vtk(self, field, resolution):

@@ -9,13 +9,7 @@ from wave_simulator.visualizer import Visualizer
 
 class Simulator:
     def __init__(self, time_stepper: LowStorageRungeKutta = None, load_file: str = None):
-        if load_file:
-            with open(load_file, 'rb') as file:
-                self.time_stepper = pickle.load(file)
-        elif time_stepper:
-            self.time_stepper = time_stepper
-        else:
-            raise ValueError("Must provide either a `time_stepper` or a `load_file`.")
+        self.time_stepper = time_stepper
         self.physics = self.time_stepper.physics
         self.mesh = self.physics.mesh
         self.t_final = self.time_stepper.t_final
@@ -29,6 +23,7 @@ class Simulator:
 
         self.tracked_points = []
         self.energy_index = 0
+        self._get_source_data()
 
     def set_save_intervals(self,
                            image=None,
@@ -83,6 +78,13 @@ class Simulator:
             self.time_stepper.advance_time_step()
             self._log_info()
 
+    def _get_source_data(self):
+        num_time_steps = self.time_stepper.num_time_steps
+        self.source_data = np.zeros(num_time_steps)
+        for time in range(num_time_steps):
+            t = time*self.time_stepper.dt
+            self.source_data[time] = self.physics._get_amplitude(t)
+
     def _save_data(self):
         visualizer = self.visualizer  # backup
         self.visualizer = None        # remove for pickling
@@ -91,11 +93,12 @@ class Simulator:
             pickle.dump(self, f)
         self.visualizer = visualizer  # restore after saving
 
-
     def _save_image(self):
+        if self.visualizer == None:
+            self.visualizer = Visualizer(self.time_stepper)
         self.visualizer.plotter.clear()
         self.visualizer._show_grid()
-        #self.visualizer.add_inclusion_boundary()
+        self.visualizer.add_inclusion_boundary()
         #self.visualizer.add_cell_averages(self.time_stepper.physics.p)
         self.visualizer.add_nodes_3d(self.time_stepper.physics.p)
         self.visualizer.save()
@@ -118,7 +121,6 @@ class Simulator:
         # used to recover the energy (l2 norm) of the system
         # uT M u = || u ||^2
         # get nodal values
-        #p2 = self.physics.p.T * self.mesh.reference_element_operators.mass_matrix * self.physics.p
         j = self.mesh.jacobians[0,:]  # shape (K,)
         p = self.physics.p
         u = self.physics.u
@@ -129,41 +131,23 @@ class Simulator:
         rho = self.mesh.density[0,:]  # shape (Np, K)
         c = self.mesh.speed[0,:]      # shape (Np, K)
         inv_bulk = 1.0 / (rho * (c**2))  # shape (Np, K)
-        potential = np.array([p[:, i].T @ mass @ p[:, i] for i in range(num_cells)])
-        potential = 0.5 * inv_bulk * j * potential
         
         # potential energy: (1/2) * p^2 / (rho * c^2)
-        #Mp = mass @ pressure
-        #Mp = mass @ pressure   # shape (Np, K)
-        #potential =  np.einsum('ij,ij->j', pressure, Mp)  # dot product along columns
-        ##potential = j * (0.5 * potential * inv_bulk)
-        #potential = (0.5 * inv_bulk * potential)
+        potential = np.array([p[:, i].T @ mass @ p[:, i] for i in range(num_cells)])
+        potential = 0.5 * inv_bulk * j * potential
         self.potential_data[self.energy_index] = np.sum(potential)
  
-        # kinetic energy
-        #Mu = mass @ u # shape (10, 47021)
-        #Mv = mass @ v # shape (10, 47021)
-        #Mw = mass @ w # shape (10, 47021)
-        #Mu = mass @ (u)
-        #Mv = mass @ (v)
-        #Mw = mass @ (w)
-        #kinetic_u = np.einsum('ij,ij->j', u, Mu)  # dot product along columns
-        #kinetic_v = np.einsum('ij,ij->j', v, Mv)  # dot product along columns
-        #kinetic_w = np.einsum('ij,ij->j', w, Mw)  # dot product along columns
-
         # kinetic energy: (1/2) * rho * (u^2 + v^2 + w^2)
-        #kinetic = j * (0.5 * rho * (kinetic_u + kinetic_v + kinetic_w))
         kinetic_u = np.array([u[:, i].T @ mass @ u[:, i] for i in range(num_cells)])
         kinetic_v = np.array([v[:, i].T @ mass @ v[:, i] for i in range(num_cells)])
         kinetic_w = np.array([w[:, i].T @ mass @ w[:, i] for i in range(num_cells)])
-
         kinetic = (0.5 * rho * j * (kinetic_u + kinetic_v + kinetic_w))
         self.kinetic_data[self.energy_index] = np.sum(kinetic)
     
-        # integrate over domain using nodal volume weights
+        # total energy
         energy = np.sum(potential + kinetic)
-    
         self.energy_data[self.energy_index] = energy
+
         self.energy_index += 1
         
 

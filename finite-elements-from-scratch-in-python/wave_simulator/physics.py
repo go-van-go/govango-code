@@ -2,6 +2,7 @@ import numpy as np
 from wave_simulator.mesh import Mesh3d
 from wave_simulator.visualizer import Visualizer 
 from scipy.stats import mode
+import sympy as sp
 
 class LinearAcoustics:
     def __init__(self, mesh: Mesh3d):
@@ -18,7 +19,7 @@ class LinearAcoustics:
         self.source_center = np.array([0.125, 0.125, 0.0])
         self.source_radius = 0.02
         self.source_frequency = 40000  # Hz
-        self.source_duration = (1 / self.source_frequency)
+        self.source_duration = 0.5 * (1 / self.source_frequency)
         self.source_amplitude = 10000
         self._locate_source_nodes()
         # air density = 1.293 earthdata.nasa.gov/topics/atmosphere/air-mass-density
@@ -84,32 +85,33 @@ class LinearAcoustics:
         #amplitude = self.source_amplitude * envelope
 
         # Ricker Wavelet
-        #t0 = 0.5 * self.source_duration
-        #f = self.source_frequency
+        #f = 20000
+        #t0 = 1.7/f 
         #tau = time - t0
-        #envelope = (1 - 2 * (np.pi * f * tau) ** 2) * np.exp(-(np.pi * f * tau) ** 2)
-        #amplitude = self.source_amplitude * envelope
+        #source_amplitude = 10000
+        #envelope = (1 - f * tau ** 2) * np.exp(-(np.pi * f * tau) ** 2)
+        #amplitude = source_amplitude * envelope
         #return amplitude
 
-        # Gaussian pulse
-        #envelope = (1 - 2 * (np.pi * f * tau) ** 2) * np.exp(-(np.pi * f * tau) ** 2)
-        sigma = self.source_duration / 7
-        envelope = (np.exp(-((time - 1/self.source_frequency) ** 2)/(2*sigma**2)))
-        amplitude = self.source_amplitude * envelope
+        # Gaussian pulse (works well)
+        #f = 40000
+        #t0 = 1.25 / f
+        #shift = 0.00001
+        #sigma = t0 / 10
+        #source_amplitude = 10000
+        #envelope = (np.exp(-((time + shift - t0) ** 2)/(2*sigma**2)))
+        #amplitude = source_amplitude * envelope
+        #return amplitude
+
+        # Half sine wave
+        source_frequency = 30000
+        source_amplitude = 10000
+        envelope = 0.05 - 0.05 * np.cos(2 * np.pi * source_frequency * time) 
+        if time <= 1/source_frequency:
+            amplitude = source_amplitude * envelope
+        else:
+            amplitude = 0
         return amplitude
-        
-        # EXTRA PLOTTING STUFF
-        #t_final = 5.0e-4
-        #num_time_steps = 15620
-        #t = np.arange(0, t_final, t_final/num_time_steps) 
-        #tau = t - t0
-        #import matplotlib.pyplot as plt
-        #fig, ax = plt.subplots()
-        #ax.plot(t, self.source_amplitude*envelope, marker='o')
-        #ax.set(xlabel='time (s)', ylabel='amplitude',
-        #       title='gaussian envelope')
-        #ax.grid()
-        #plt.show()
 
     def _locate_source_nodes(self):
         exterior_values = self.mesh.exterior_face_node_indices
@@ -142,34 +144,26 @@ class LinearAcoustics:
         # Flatten to a 1D array
         self.source_nodes = full_ranges.ravel()
 
-        global_node_indices = exterior_values[boundary][self.source_nodes]
-        x = self.mesh.x.ravel(order='F')[global_node_indices]
-        y = self.mesh.y.ravel(order='F')[global_node_indices]
-        z = self.mesh.z.ravel(order='F')[global_node_indices]
+    def _apply_source_boundary_condition(self, time, p_p, p_m, w_p, w_m):
+        # TODO make this work for any source
+        # get source amplitude
+        # TODO i think get_ampltidue is the wrong name
+        source_pressure = self._get_amplitude(time)
 
-        # Compute distance from source center in plane
-        dx = x - self.source_center[0]
-        dy = y - self.source_center[1]
-        r = np.sqrt(dx**2 + dy**2)
-    
-        # Define spatial envelope (Gaussian taper)
-        n = 10
-        sigma_r = 0.8 * self.source_radius  # taper width as a fraction of radius
-        spatial_weights = np.exp(-(r / sigma_r)**n)
-    
-        # Store weights for use in source application
-        self.source_weights = spatial_weights
-
-    def _apply_source_boundary_condition(self, time, p_p):
-        #omega = 2 * np.pi * self.source_frequency
-        amplitude = self._get_amplitude(time)
-        source_pressure = amplitude# * np.sin(omega * time)
-
-        # Overwrite the pressure with sinusoidal source
+        # get source node indices 
         boundary = self.mesh.boundary_face_node_indices
-        #p_p[boundary[self.source_nodes]] = source_pressure * self.source_weights
-        p_p[boundary[self.source_nodes]] += source_pressure * self.source_weights
-        return p_p
+        source_nodes = boundary[self.source_nodes]
+
+        # get material property at the source
+        rho = 2000
+        c = 2600
+
+        # override ghost points at the boundary source
+        p_p[source_nodes] = source_pressure
+        p_minus = p_m[source_nodes]
+        w_minus = w_m[source_nodes]
+        w_p[source_nodes] = w_minus + (source_pressure - p_minus) / (rho * c)
+        return p_p, w_p
 
  
     def _apply_boundary_conditions(self, time):
@@ -219,14 +213,13 @@ class LinearAcoustics:
         #v_p[boundary] = v_m[boundary] + (ndotup - ndotum) * ny[boundary]
         #w_p[boundary] = w_m[boundary] + (ndotup - ndotum) * nz[boundary]
 
-        # apply the source boundary term if source is still on
-        #if time <= self.source_duration:
-        p_p = self._apply_source_boundary_condition(time, p_p)
+        # apply the source boundary term
+        # TODO make this work for all velocities for any source
+        p_p, w_p = self._apply_source_boundary_condition(time, p_p, p_m, w_p, w_m)
            
         # reshape for matrix-matrix multiplication
         self.u_m, self.v_m, self.w_m, self.p_m = self._reshape_to_rectangular(u_m, v_m, w_m, p_m)
         self.u_p, self.v_p, self.w_p, self.p_p = self._reshape_to_rectangular(u_p, v_p, w_p, p_p)
-        #return u_p, v_p, w_p, p_p, u_m, v_m, w_m, p_m 
 
     def _compute_homogeneous_material_flux(self):
         # homogeneous material fluxes
@@ -240,10 +233,23 @@ class LinearAcoustics:
         normal_vel_jump = self.ndotup - self.ndotum
         pressure_jump = self.p_p - self.p_m
 
-        self.flux_p = 0.5 * (self.c_m**2 * self.rho_m * normal_vel_jump - self.mu * pressure_jump)
+        self.flux_p = 0.5 * (self.c_m**2 * self.rho_m * normal_vel_jump - self.c_m * pressure_jump)
         self.flux_u = 0.5 * self.mesh.nx * ((1/self.rho_m) * (self.p_p - self.p_m) - self.c_m * normal_vel_jump)
         self.flux_v = 0.5 * self.mesh.ny * ((1/self.rho_m) * (self.p_p - self.p_m) - self.c_m * normal_vel_jump)
         self.flux_w = 0.5 * self.mesh.nz * ((1/self.rho_m) * (self.p_p - self.p_m) - self.c_m * normal_vel_jump)
+
+    def _compute_rh_flux(self):
+        # Exact flux based on solving Riemann problem
+        # Normal vector components
+        nx, ny, nz = self.mesh.nx, self.mesh.ny, self.mesh.nz
+    
+        normal_vel_jump = self.ndotup - self.ndotum
+        pressure_jump = self.p_p - self.p_m
+
+        self.flux_p = -self.c_m**2 * self.rho_m * (-self.c_p * self.rho_p * normal_vel_jump + (self.p_p - self.p_m))/(self.c_m*self.rho_m + self.c_p * self.rho_p)
+        self.flux_u = self.mesh.nx * self.c_m * (-self.c_p * self.rho_p * normal_vel_jump + (self.p_p - self.p_m))/(self.c_m*self.rho_m + self.c_p * self.rho_p)
+        self.flux_v = self.mesh.ny * self.c_m * (-self.c_p * self.rho_p * normal_vel_jump + (self.p_p - self.p_m))/(self.c_m*self.rho_m + self.c_p * self.rho_p)
+        self.flux_w = self.mesh.nz * self.c_m * (-self.c_p * self.rho_p * normal_vel_jump + (self.p_p - self.p_m))/(self.c_m*self.rho_m + self.c_p * self.rho_p)
 
     def _compute_xijun_he_flux(self):
         # flux from Xiun He 2025 - An effective discontinuous galerkin
@@ -303,17 +309,15 @@ class LinearAcoustics:
         dpdz = drdz * (Dr @ self.p) + dsdz * (Ds @ self.p) + dtdz * (Dt @ self.p)
 
         # apply boundary conditions
-        #u_p, v_p, w_p, p_p, u_m, v_m, w_m, p_m = self._apply_boundary_conditions(time)
         self._apply_boundary_conditions(time)
 
         # compute normal velocity at interior boundary and exterior boundary 
         self.ndotum = self.mesh.nx * self.u_m + self.mesh.ny * self.v_m + self.mesh.nz * self.w_m
         self.ndotup = self.mesh.nx * self.u_p + self.mesh.ny * self.v_p + self.mesh.nz * self.w_p
 
-        # get max speed for every interface
-        self.mu = np.maximum(self.c_p, self.c_m)
-
-        self._compute_upwind_flux()
+        # compute flux
+        #self._compute_upwind_flux()
+        self._compute_rh_flux()
         #self._compute_xijun_he_flux()
 
         ## get necessary matricies for integral computation
