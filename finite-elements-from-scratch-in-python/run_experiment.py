@@ -8,7 +8,7 @@ from wave_simulator.simulator import Simulator
 
 # create finite element
 dimension = 3
-polynomial_order = 3 # eta1 and eta2 are defined for N=2
+polynomial_order = 2 # eta1 and eta2 are defined for N=2
 lagrange_element = LagrangeElement(dimension, polynomial_order)
 
 # create mesh
@@ -34,16 +34,19 @@ simulator = Simulator(time_stepper)
 
 simulator.set_save_intervals(image=10, data=100, points=10, energy=50, vtk=0)
 simulator.track_points([
-    [0.125, 0.125, 0.0],
-    [0.125, 0.125, 0.0001],
-    [0.125, 0.125, 0.0249],
-    [0.125, 0.125, 0.0251],
-    [0.125, 0.125, 0.0849],
-    [0.125, 0.125, 0.0851],
-    [0.125, 0.125, 0.1649],
-    [0.125, 0.125, 0.1651],
-    [0.125, 0.125, 0.2249],
-    [0.125, 0.125, 0.2251],
+    [0.125, 0.125, 0.000],
+    [0.125, 0.125, 0.000],
+    [0.125, 0.125, 0.000],
+    [0.125, 0.125, 0.010],
+#    #[0.125, 0.125, 0.001],
+#    #[0.125, 0.125, 0.0245],
+#    #[0.125, 0.125, 0.0255],
+#    #[0.125, 0.125, 0.0845],
+#    #[0.125, 0.125, 0.0855],
+#    #[0.125, 0.125, 0.1645],
+#    #[0.125, 0.125, 0.1655],
+#    #[0.125, 0.125, 0.2245],
+#    #[0.125, 0.125, 0.2255],
 ])
 
 # run experiment

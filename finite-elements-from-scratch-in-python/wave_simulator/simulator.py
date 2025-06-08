@@ -83,7 +83,7 @@ class Simulator:
         self.source_data = np.zeros(num_time_steps)
         for time in range(num_time_steps):
             t = time*self.time_stepper.dt
-            self.source_data[time] = self.physics._get_amplitude(t)
+            self.source_data[time] = self.physics._get_source_pressure(t)
 
     def _save_data(self):
         visualizer = self.visualizer  # backup
@@ -100,7 +100,8 @@ class Simulator:
         self.visualizer._show_grid()
         self.visualizer.add_inclusion_boundary()
         #self.visualizer.add_cell_averages(self.time_stepper.physics.p)
-        self.visualizer.add_nodes_3d(self.time_stepper.physics.p)
+        #self.visualizer.add_nodes_3d(self.time_stepper.physics.p)
+        self.visualizer.add_nodes_3d(self.time_stepper.physics.w)
         self.visualizer.save()
 
     def _save_to_vtk(self, field, resolution=40):
@@ -108,10 +109,10 @@ class Simulator:
 
     def _save_tracked_points(self):
         # get field
-        field = self.physics.p
+        field = [self.physics.p, self.physics.u, self.physics.v, self.physics.w]
         # Sample field at tracked points
         for i, point in enumerate(self.tracked_points):
-            value = self.visualizer.eval_at_point(point[0], point[1], point[2], field)
+            value = self.visualizer.eval_at_point(point[0], point[1], point[2], field[i])
             self.point_data[i,self.column_index] = value
         # increment column index
         self.column_index += 1

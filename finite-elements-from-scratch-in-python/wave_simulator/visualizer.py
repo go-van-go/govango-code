@@ -259,20 +259,28 @@ class Visualizer:
             cmap="seismic",
             #opacity='linear',
             #opacity=opacity,
-            #clim=[-150, 150],
             opacity=[0.9, 0.7, 0.5, 0.5, 0, 0.5, 0.5, 0.7, 0.9],
             #opacity=[0.01, 0.05, 0.06,  0.08, 0.09, 0.2, 0.3],
-            clim=[-100,100],
+            clim=[-.00001,.00001],
+            #clim=[-100,100],
             point_size=10,
             render_points_as_spheres=True
         )
 
     def add_node_list(self, nodes):
-         # Extract x, y, z coordinates for the nodes
-        x = np.ravel(self.mesh.x, order='F')[nodes]
-        y = np.ravel(self.mesh.y, order='F')[nodes]
-        z = np.ravel(self.mesh.z, order='F')[nodes]
+        # Extract x, y, z coordinates for the nodes
+        #x = self.mesh.x.ravel(order='F')[nodes]
+        #y = self.mesh.y.ravel(order='F')[nodes]
+        #z = self.mesh.z.ravel(order='F')[nodes]
         
+        interior_values = self.mesh.interior_face_node_indices
+        x = self.mesh.x.ravel(order='F')[interior_values]
+        y = self.mesh.y.ravel(order='F')[interior_values]
+        z = self.mesh.z.ravel(order='F')[interior_values]
+        x = x[nodes]
+        y = y[nodes]
+        z = z[nodes]
+
         # Stack into nodal points
         node_coordinates = np.column_stack((x, y, z))
          # Add the points to the plot with colors and opacity
