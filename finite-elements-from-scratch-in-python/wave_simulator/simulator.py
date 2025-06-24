@@ -100,8 +100,8 @@ class Simulator:
         self.visualizer._show_grid()
         self.visualizer.add_inclusion_boundary()
         #self.visualizer.add_cell_averages(self.time_stepper.physics.p)
-        #self.visualizer.add_nodes_3d(self.time_stepper.physics.p)
-        self.visualizer.add_nodes_3d(self.time_stepper.physics.w)
+        self.visualizer.add_nodes_3d(self.time_stepper.physics.p)
+        #self.visualizer.add_nodes_3d(self.time_stepper.physics.w)
         self.visualizer.save()
 
     def _save_to_vtk(self, field, resolution=40):
@@ -149,8 +149,7 @@ class Simulator:
         energy = np.sum(potential + kinetic)
         self.energy_data[self.energy_index] = energy
 
-        self.energy_index += 1
-        
+        self.energy_index += 1       
 
     def _log_info(self):
         sys.stdout.write(f"\rTimestep: {self.time_stepper.current_time_step}, Time: {self.time_stepper.t:.6f}")

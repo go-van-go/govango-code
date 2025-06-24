@@ -12,7 +12,8 @@ polynomial_order = 2 # eta1 and eta2 are defined for N=2
 lagrange_element = LagrangeElement(dimension, polynomial_order)
 
 # create mesh
-mesh_file = "./inputs/meshes/skull.msh"
+#mesh_file = "./inputs/meshes/skull.msh"
+mesh_file = "./inputs/meshes/sphere_in_cube.msh"
 mesh = Mesh3d(mesh_file, lagrange_element)
 
 # create physics
@@ -20,8 +21,8 @@ physics = LinearAcoustics(mesh)
 
 # create time stepping object 
 t_initial = 0.0
-t_final = 4.0e-4
-#t_final = 3
+#t_final = 4.0e-4
+t_final = 1
 time_stepper = LowStorageRungeKutta(physics, t_initial, t_final)
 
 # initialize simulator object
@@ -34,10 +35,10 @@ simulator = Simulator(time_stepper)
 
 simulator.set_save_intervals(image=10, data=100, points=10, energy=50, vtk=0)
 simulator.track_points([
-    [0.125, 0.125, 0.000],
-    [0.125, 0.125, 0.000],
-    [0.125, 0.125, 0.000],
-    [0.125, 0.125, 0.010],
+    [0.125000, 0.125000, 0.00],
+    [0.125000, 0.125000, 0.00],
+    [0.125000, 0.125000, 0.00],
+    [0.125000, 0.125000, 0.00],
 #    #[0.125, 0.125, 0.001],
 #    #[0.125, 0.125, 0.0245],
 #    #[0.125, 0.125, 0.0255],

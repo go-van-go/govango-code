@@ -261,8 +261,8 @@ class Visualizer:
             #opacity=opacity,
             opacity=[0.9, 0.7, 0.5, 0.5, 0, 0.5, 0.5, 0.7, 0.9],
             #opacity=[0.01, 0.05, 0.06,  0.08, 0.09, 0.2, 0.3],
-            clim=[-.00001,.00001],
-            #clim=[-100,100],
+            #clim=[-.00001,.00001],
+            clim=[-.05,.05],
             point_size=10,
             render_points_as_spheres=True
         )
@@ -488,11 +488,11 @@ class Visualizer:
         self.plotter.add_mesh(
             grid,
             scalars=self.mesh.speed[0,:],
-            opacity=0.005#'linear'#abs(wave_speed)
+            opacity=0.05#'linear'#abs(wave_speed)
         )
 
     def add_mesh(self):
-        """ add the edges of the entire 3D mesh """
+        """Add the edges of the entire 3D mesh as translucent wireframe."""
         # Construct a cells object to make a pyvista unstructuredGrid
         cells = np.zeros(self.mesh.num_cells * 5, dtype='int')
         index = 0
@@ -502,6 +502,7 @@ class Visualizer:
             else:
                 cells[i] = index
                 index += 1
+    
         cell_types = np.repeat(np.array([pv.CellType.TETRA]), self.mesh.num_cells)
         points = self.mesh.vertex_coordinates[self.mesh.cell_to_vertices.ravel()]
     
@@ -511,17 +512,62 @@ class Visualizer:
             cell_types,
             points,
         )
-           
-        # Add clipping widgets
-        for norm in ['-x', '-y']:
+    
+        # Add wireframe rendering of the mesh
+        #self.plotter.add_mesh(
+        #    grid,
+        #    style='wireframe',    # Only edges
+        #    color='black',        # Edge color
+        #    line_width=1.0,       # Line thickness
+        #    opacity=0.4           # Optional: make it slightly translucent
+        #)
+    
+       # # Optional: Add clip planes if still desired
+        #for norm in ['-z', '-x', '-y']:
+        for norm in ['-z']:
             self.plotter.add_mesh_clip_plane(
                 grid,
                 normal=norm,
                 crinkle=True,
                 interaction_event='always',
                 normal_rotation=False,
-                color='#5e81ac'
+                color='black',
+                style='wireframe',
+                opacity=0.4
             )
+ 
+
+#    def add_mesh(self):
+#        """ add the edges of the entire 3D mesh """
+#        # Construct a cells object to make a pyvista unstructuredGrid
+#        cells = np.zeros(self.mesh.num_cells * 5, dtype='int')
+#        index = 0
+#        for i in range(self.mesh.num_cells * 5):
+#            if i % 5 == 0:
+#                cells[i] = 4
+#            else:
+#                cells[i] = index
+#                index += 1
+#        cell_types = np.repeat(np.array([pv.CellType.TETRA]), self.mesh.num_cells)
+#        points = self.mesh.vertex_coordinates[self.mesh.cell_to_vertices.ravel()]
+#    
+#        # create a pyvista unstructured grid
+#        grid = pv.UnstructuredGrid(
+#            cells,
+#            cell_types,
+#            points,
+#        )
+           
+        # Add clipping widgets
+        #for norm in ['-x', '-y']:
+        #    self.plotter.add_mesh_clip_plane(
+        #        grid,
+        #        normal=norm,
+        #        crinkle=True,
+        #        interaction_event='always',
+        #        normal_rotation=False,
+        #        color='#5e81ac'
+        #    )
  
     def add_mesh_boundary(self):
         """ Plot mesh edges on boundary """
@@ -589,45 +635,15 @@ class Visualizer:
         plotter.show(title=f"Lagrange Element Nodes (d={d}, n={n})")
 
     def add_inclusion_boundary(self):
-        # Define the inclusion vertices
-        #inner_dim = 0.025
-        #outer_dim = 0.25 - inner_dim
-        #vertices = np.array([
-        #    [inner_dim, inner_dim, inner_dim],
-        #    [inner_dim, inner_dim, outer_dim],
-        #    [inner_dim, outer_dim, inner_dim],
-        #    [inner_dim, outer_dim, outer_dim],
-        #    [outer_dim, inner_dim, inner_dim],
-        #    [outer_dim, inner_dim, outer_dim],
-        #    [outer_dim, outer_dim, inner_dim],
-        #    [outer_dim, outer_dim, outer_dim]
-        #])
-        #
-        ## Define the edges as pairs of vertex indices
-        #edges = [
-        #    (0, 1), (0, 2), (0, 4),
-        #    (1, 3), (1, 5),
-        #    (2, 3), (2, 6),
-        #    (3, 7),
-        #    (4, 5), (4, 6),
-        #    (5, 7),
-        #    (6, 7)
-        #]
-        #
-        ## Plot each edge
-        #for edge in edges:
-        #    line = pv.Line(vertices[edge[0]], vertices[edge[1]])
-        #    self.plotter.add_mesh(line, color="black", line_width=2)
-        
-        cube = pv.Cube(bounds=(0.025, 0.225, 0.025, 0.225, 0.025, 0.225))
-        self.plotter.add_mesh(cube,
-                              color="#ababb3",
-                              opacity=0.1,
-                              show_edges=True)
+        #cube = pv.Cube(bounds=(0.025, 0.225, 0.025, 0.225, 0.025, 0.225))
+        #self.plotter.add_mesh(cube,
+        #                      color="#ababb3",
+        #                      opacity=0.1,
+        #                      show_edges=True)
 
         # Add the spherical inclusion
         sphere_center = (0.125, 0.125, 0.125)
-        sphere_radius = 0.04
+        sphere_radius = 0.05
         sphere = pv.Sphere(center=sphere_center,
                            radius=sphere_radius,
                            theta_resolution=10,

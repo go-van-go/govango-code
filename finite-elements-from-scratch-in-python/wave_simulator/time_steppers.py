@@ -34,7 +34,7 @@ class LowStorageRungeKutta:
         self.source_frequency = 10
         self.source_amplitude = 10000
         #self.source_duration = 0.10 # in seconds
-        self.wavelength = self.physics.max_speed / self.source_frequency  
+        #self.wavelength = self.physics.max_speed / self.source_frequency  
         #self.source_duration = 1 / self.source_frequency
         self.damping_coefficient = 20.0 # for exponential damping
         self.gaussian_decay_scale = 0.001 # for gaussian damping
@@ -50,11 +50,14 @@ class LowStorageRungeKutta:
     def _compute_time_step_size_hesthaven(self):
         n = self.physics.mesh.reference_element.n
         #surface_to_volume_jacobian = self.physics.mesh.surface_to_volume_jacobian
-        c = self.physics.max_speed
+        #c = self.physics.max_speed
+
+        c = np.max(self.physics.mesh.speed) # used in time_stepper.py
         d = self.physics.mesh.smallest_diameter
         cfl_factor = 0.9
         #dt = 1.0 * (1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n * c))
         dt = cfl_factor * (d / (n * n * c))
+        #dt = cfl_factor * (d / (10 * c))
         # correct dt for integer # of time steps
         self.num_time_steps = int(np.ceil(self.t_final/ dt))
         self.dt = (self.t_final / self.num_time_steps)
