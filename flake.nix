@@ -23,12 +23,13 @@
                 python-pkgs.python-lsp-server
               # packages for code
                 python-pkgs.gmsh
-		python-pkgs.pyvista
-		python-pkgs.pytest
-		python-pkgs.numpy
-		python-pkgs.scipy
                 python-pkgs.matplotlib
+		python-pkgs.numpy
+		python-pkgs.pytest
+		python-pkgs.pyvista
+		python-pkgs.scipy
 		python-pkgs.sympy
+		python-pkgs.tomli
               ]))
             ];
 

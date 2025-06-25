@@ -1,15 +1,59 @@
+import hashlib
+import json
 import numpy as np
 import gmsh
+from pathlib import Path
+from logging import getLogger
 from wave_simulator.reference_element_operators import ReferenceElementOperators
 from wave_simulator.finite_elements import LagrangeElement
 
 class Mesh3d:
-    def __init__(self, msh_file, finite_element: LagrangeElement):
-        self.msh_file = msh_file
-        self.reference_element = finite_element 
+    def __init__(self,
+                 finite_element: LagrangeElement,
+                 grid_size=None,
+                 box_size=None,
+                 inclusion_density=None,
+                 inclusion_speed=None,
+                 outer_density=None,
+                 outer_speed=None,
+                 source_center=None,
+                 source_radius=None,
+                 source_amplitude=None,
+                 source_frequency=None,
+                 inclusion_radius=None,
+                 msh_file=None):
+
+        self.reference_element = finite_element
         self.reference_element_operators = ReferenceElementOperators(self.reference_element)
         self.dim = self.reference_element.d
         self.n = self.reference_element.n  # polynomial order
+        #gmsh.initialize()
+
+        if msh_file is not None:
+            self.msh_file = msh_file
+            self.initialize_gmsh()
+        elif None not in (grid_size, box_size, inclusion_density, inclusion_speed,
+                          outer_density, outer_speed, source_center,
+                          source_radius, source_amplitude, source_frequency, inclusion_radius):
+            self.grid_size = grid_size
+            self.box_size = box_size
+            self.inclusion_density = inclusion_density
+            self.inclusion_speed = inclusion_speed
+            self.outer_density = outer_density
+            self.outer_speed = outer_speed
+            self.source_center = source_center
+            self.source_radius = source_radius
+            self.source_amplitude = source_amplitude
+            self.source_frequency = source_amplitude
+            self.inclusion_radius = inclusion_radius
+            self.msh_file = self._get_mesh_file_path()
+            if self.msh_file.exists():
+                self.initialize_gmsh()
+            else:
+                self._generate_geometry()
+        else:
+            raise ValueError("Invalid Mesh3d initialization: must provide either msh_file or all geometric parameters.")
+
        # self.num_vertices = 0
        # self.num_cells= 0
        # self.vertex_coordinates = []
@@ -39,7 +83,7 @@ class Mesh3d:
        # self.jacobians = {}
        # #self.determinants = {}
        
-        self.initialize_gmsh()
+#        self.initialize_gmsh()
         self._extract_mesh_info()
         self._get_material_info()
         self._get_smallest_diameter()
@@ -53,13 +97,105 @@ class Mesh3d:
         self._compute_surface_to_volume_jacobian()
         self.log_info()
 
-        #gmsh.finalize()
-
     def initialize_gmsh(self):
         gmsh.initialize()
         gmsh.option.setNumber("General.Terminal", 0);
-        print(f"... Processing mesh file {self.msh_file} ...")
-        gmsh.open(self.msh_file)
+        logger = getLogger("simlog")
+        logger.info(f"... Found mesh file {self.msh_file}")
+        logger.info(f"... Processing mesh file  ...")
+        gmsh.open(str(self.msh_file))
+
+    def _generate_geometry(self):
+        logger = getLogger("simlog")
+        logger.info(f"... Mesh not found. Generating new mesh ...")
+
+        gmsh.initialize()
+        gmsh.option.setNumber("General.Terminal", 0);
+        gmsh.clear()
+
+        # Some abbreviations
+        model = gmsh.model
+        geo = model.geo
+        mesh = model.mesh
+    
+        # Extract geometry parameters
+        x_dim = self.box_size
+        y_dim = self.box_size
+        z_dim = self.box_size
+    
+        # Source geometry
+        source_x, source_y, source_z = self.source_center
+        source_radius = self.source_radius
+    
+        # Inclusion geometry
+        inclusion_center = (x_dim / 2, y_dim / 2, z_dim / 2)
+        inclusion_radius = self.inclusion_radius
+        
+        main_cell_size = self.grid_size
+        
+        # Create outer box
+        cube = model.occ.addBox(0, 0, 0, x_dim, y_dim, z_dim)
+    
+        # Create central inclusion
+        inclusion = model.occ.addSphere(
+            inclusion_center[0],
+            inclusion_center[1],
+            inclusion_center[2],
+            inclusion_radius
+        )
+
+        # Create source disk
+        source_disk = model.occ.addDisk(source_x, source_y, source_z, source_radius, source_radius)
+    
+        # Perform boolean fragment
+        outDimTags, _ = model.occ.fragment(
+            [(3, cube), (3, inclusion), (2, source_disk)],
+            []
+        )
+    
+        model.occ.synchronize()
+    
+        # Set mesh size
+        mesh.setSize(model.getEntities(0), main_cell_size)
+    
+        # Add physical groups for volumes only
+        volume_count = 0
+        for dim, tag in outDimTags:
+            if dim == 3:
+                volume_count += 1
+                model.addPhysicalGroup(3, [tag], tag=volume_count)
+    
+        # Optimize mesh
+        gmsh.option.setNumber("Mesh.OptimizeNetgen", 1)
+    
+        # Generate and save mesh
+        model.mesh.generate(3)
+
+        self.msh_file.parent.mkdir(parents=True, exist_ok=True)
+        gmsh.write(str(self.msh_file))
+
+        logger.info(f"... Mesh generated: {self.msh_file} ...")
+
+    def _geometry_hash(self):
+        """
+        Create a short hash from mesh-related parameters.
+        """
+        params = {
+            "grid_size": self.grid_size,
+            "box_size": self.box_size,
+            "source_center": self.source_center,
+            "source_radius": self.source_radius,
+            "inclusion_radius": self.inclusion_radius,
+        }
+        encoded = json.dumps(params, sort_keys=True).encode()
+        return hashlib.sha1(encoded).hexdigest()[:10]
+    
+    def _get_mesh_file_path(self):
+        """
+        Returns the full path of the mesh file in inputs/meshes/
+        """
+        hash = self._geometry_hash()
+        return Path("inputs/meshes") / f"{hash}.msh"
 
     def _extract_mesh_info(self):
         """ Get information from Gmsh file """
@@ -90,14 +226,14 @@ class Mesh3d:
         # input order: gray matter, bone, white matter 
         #speed = [1398 , 2600, 974] # m/s
         #density = [1016, 2000, 1063] # kg/m^3
-        speed = [3.0 , 1.5] # m/s
-        density = [8.0, 1.0] # kg/m^3
+        #speed = [3.0 , 1.5] # m/s
+        #density = [8.0, 1.0] # kg/m^3
+        speed = [self.outer_speed, self.inclusion_speed]  # physical group tags 1, 2
+        density = [self.outer_density, self.inclusion_density]
 
         dim = 3
         physical_groups = gmsh.model.getPhysicalGroups(dim)
-        #self.speed = np.ones((self.num_cells)) * 1# m/s
         self.speed = np.ones((self.reference_element.nodes_per_cell, self.num_cells)) # m/s 
-        #self.density = np.ones((self.num_cells)) * 1# kg/m^3 
         self.density = np.ones((self.reference_element.nodes_per_cell, self.num_cells)) # kg/m^3
 
         # loop over all physical_groups
@@ -381,8 +517,13 @@ class Mesh3d:
         return edge_vertices.reshape(int(len(edge_vertices)/2), 2).astype(int) - 1
 
     def log_info(self):
-        print(f"Number of cells: {self.num_cells}")
-        print(f"Number of vertices: {self.num_vertices}")
-        print(f"Using {self.n} order Lagrange element")
-        print(f"Nodes per cell: {self.reference_element.nodes_per_cell}")
-        print(f"Number of nodes: {self.reference_element.nodes_per_cell * self.num_cells}")
+        logger = getLogger("simlog")
+        logger.info(f"Number of cells: {self.num_cells}")
+        logger.info(f"Number of vertices: {self.num_vertices}")
+        logger.info(f"Using {self.n} order Lagrange element")
+        logger.info(f"Nodes per cell: {self.reference_element.nodes_per_cell}")
+        logger.info(f"Number of nodes: {self.reference_element.nodes_per_cell * self.num_cells}")
+        #print(f"Number of cells: {self.num_cells}")
+        #print(f"Number of vertices: {self.num_vertices}")
+        #print(f"Nodes per cell: {self.reference_element.nodes_per_cell}")
+        #print(f"Number of nodes: {self.reference_element.nodes_per_cell * self.num_cells}")

@@ -49,14 +49,34 @@ class Simulator:
         self.kinetic_data = np.zeros(self.num_readings)
         self.potential_data = np.zeros(self.num_readings)
 
-    def track_points(self, points):
-        # save points to be tracked
-        self.tracked_points = points
-        # initialize array to hold all values
+    def track_points(self, pressure=None, x=None, y=None, z=None):
         self.num_readings = math.ceil(self.time_stepper.num_time_steps / self.save_points_interval)
-        self.point_data = np.zeros((len(points), self.num_readings))
-        # initialize column index for indexing
         self.column_index = 0
+        self.tracked_fields = {}
+        if pressure:
+            self.tracked_fields["pressure"] = {
+                "points": pressure,
+                "data": np.zeros((len(pressure), self.num_readings)),
+                "field_name": "p"
+            }
+        if x:
+            self.tracked_fields["x"] = {
+                "points": x,
+                "data": np.zeros((len(x), self.num_readings)),
+                "field_name": "u"
+            }
+        if y:
+            self.tracked_fields["y"] = {
+                "points": y,
+                "data": np.zeros((len(y), self.num_readings)),
+                "field_name": "v"
+            }
+        if z:
+            self.tracked_fields["z"] = {
+                "points": z,
+                "data": np.zeros((len(z), self.num_readings)),
+                "field_name": "w"
+            }
 
     def run(self):
         while self.time_stepper.t < self.t_final:
@@ -89,7 +109,7 @@ class Simulator:
         visualizer = self.visualizer  # backup
         self.visualizer = None        # remove for pickling
         file_name=f't_{self.time_stepper.current_time_step:0>8}'
-        with open(f'./outputs/data/{file_name}.pkl', 'wb') as f:
+        with open(f'{self.output_path}/data/{file_name}.pkl', 'wb') as f:
             pickle.dump(self, f)
         self.visualizer = visualizer  # restore after saving
 
@@ -107,14 +127,25 @@ class Simulator:
     def _save_to_vtk(self, field, resolution=40):
         self.visualizer.save_to_vtk(field, resolution)
 
+    #def _save_tracked_points(self):
+    #    # get field
+    #    field = self.physics.p
+    #    # Sample field at tracked points
+    #    for i, point in enumerate(self.tracked_points):
+    #        value = self.visualizer.eval_at_point(point[0], point[1], point[2], field[i])
+    #        self.point_data[i,self.column_index] = value
+    #    # increment column index
+    #    self.column_index += 1
+
     def _save_tracked_points(self):
-        # get field
-        field = [self.physics.p, self.physics.u, self.physics.v, self.physics.w]
-        # Sample field at tracked points
-        for i, point in enumerate(self.tracked_points):
-            value = self.visualizer.eval_at_point(point[0], point[1], point[2], field[i])
-            self.point_data[i,self.column_index] = value
-        # increment column index
+        for name, field in self.tracked_fields.items():
+            values = field["data"]
+            points = field["points"]
+            field_array = getattr(self.physics, field["field_name"])
+    
+            for i, (x, y, z) in enumerate(points):
+                values[i, self.column_index] = self.visualizer.eval_at_point(x, y, z, field_array)
+    
         self.column_index += 1
 
     def _save_energy(self):

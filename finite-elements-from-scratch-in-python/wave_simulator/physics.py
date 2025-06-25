@@ -4,16 +4,22 @@ from wave_simulator.visualizer import Visualizer
 from scipy.stats import mode
 
 class LinearAcoustics:
-    def __init__(self, mesh: Mesh3d):
+    def __init__(self,
+                 mesh: Mesh3d,
+                 source_center=None,
+                 source_radius=None,
+                 source_amplitude=None,
+                 source_frequency=None,
+                 ):
         self.mesh = mesh
         #self.p = np.zeros((nodes_per_cell, num_cells)) # pressure field 
         #self.u = np.zeros((nodes_per_cell, num_cells)) # x component of velocity field 
         #self.v = np.zeros((nodes_per_cell, num_cells)) # y component of velocity field
         #self.w = np.zeros((nodes_per_cell, num_cells)) # z component of velocity field
-        self.source_center = np.array([0.125, 0.125, 0.0])
-        self.source_radius = 0.02
-        self.source_frequency = 20 # Hz
-        self.source_amplitude = 0.1
+        self.source_center = np.array(source_center)
+        self.source_radius = source_radius
+        self.source_frequency = source_frequency# Hz
+        self.source_amplitude = source_amplitude
         self.source_duration = 1 / self.source_frequency
         self._locate_source_nodes()
         # air density = 1.293 earthdata.nasa.gov/topics/atmosphere/air-mass-density

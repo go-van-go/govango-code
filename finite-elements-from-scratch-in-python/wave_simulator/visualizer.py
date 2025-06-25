@@ -262,7 +262,7 @@ class Visualizer:
             opacity=[0.9, 0.7, 0.5, 0.5, 0, 0.5, 0.5, 0.7, 0.9],
             #opacity=[0.01, 0.05, 0.06,  0.08, 0.09, 0.2, 0.3],
             #clim=[-.00001,.00001],
-            clim=[-.05,.05],
+            clim=[-.20,.20],
             point_size=10,
             render_points_as_spheres=True
         )
@@ -675,7 +675,7 @@ class Visualizer:
 
     def save(self):
         file_name=f't_{self.time_stepper.current_time_step:0>8}.png'
-        self.plotter.screenshot(f'./outputs/images/{file_name}')
+        self.plotter.screenshot(f'{self.output_path}/images/{file_name}')
 
     def plot_energy(self, energy_data, kinetic_data, potential_data, interval):
         num_steps = len(energy_data)-2
@@ -693,31 +693,88 @@ class Visualizer:
         plt.show()
         
 
-    def plot_tracked_points(self, point_data, tracked_points):
-        num_points, num_steps = point_data.shape
-        dt = self.time_stepper.dt * 10
-        time_array = np.arange(num_steps) * dt
+   # def plot_tracked_points(self, point_data, tracked_points):
+   #     num_points, num_steps = point_data.shape
+   #     dt = self.time_stepper.dt * 10
+   #     time_array = np.arange(num_steps) * dt
+   # 
+   #     fig, axes = plt.subplots(num_points, 1, figsize=(10, 4 * num_points), sharex=True)
+   # 
+   #     if num_points == 1:
+   #         axes = [axes]  # Ensure axes is iterable
+   # 
+   #     for i in range(num_points):
+   #         x, y, z = tracked_points[i]
+   #         ax = axes[i]
+   #         ax.plot(time_array, point_data[i],
+   #                 marker='o', markersize=3,
+   #                 linestyle='-', linewidth=1,
+   #                 label=f'Point {i}')
+   #         ax.set_title(f'Pressure at (x={x:.2f}, y={y:.2f}, z={z:.2f})')
+   #         ax.set_ylabel('Pressure')
+   #         ax.grid(True, alpha=0.3)
+   # 
+   #     axes[-1].set_xlabel('Time (s)')
+   # 
+   #     plt.tight_layout()
+   #     plt.show()
+
+    def plot_tracked_points(self, tracked_fields: dict, dt_factor: int = 10):
+        """
+        Plot each field (pressure or velocity component) at each tracked point on a separate subplot.
+        """
+        if not tracked_fields:
+            print("No tracked field data to plot.")
+            return
     
-        fig, axes = plt.subplots(num_points, 1, figsize=(10, 4 * num_points), sharex=True)
+        num_steps = next(iter(tracked_fields.values()))["data"].shape[1]
+        time_array = np.arange(num_steps) * self.time_stepper.dt * dt_factor
     
-        if num_points == 1:
-            axes = [axes]  # Ensure axes is iterable
+        color_map = {
+            "pressure": "purple",
+            "x": "blue",
+            "y": "green",
+            "z": "red"
+        }
+        label_map = {
+            "pressure": "Pressure",
+            "x": "Velocity (u)",
+            "y": "Velocity (v)",
+            "z": "Velocity (w)"
+        }
     
-        for i in range(num_points):
-            x, y, z = tracked_points[i]
-            ax = axes[i]
-            ax.plot(time_array, point_data[i],
-                    marker='o', markersize=3,
-                    linestyle='-', linewidth=1,
-                    label=f'Point {i}')
-            ax.set_title(f'Pressure at (x={x:.2f}, y={y:.2f}, z={z:.2f})')
-            ax.set_ylabel('Pressure')
-            ax.grid(True, alpha=0.3)
+        # Count total number of plots (one per point per field)
+        total_plots = sum(len(entry["points"]) for entry in tracked_fields.values())
+        fig, axes = plt.subplots(total_plots, 1, figsize=(10, 3.5 * total_plots), sharex=True)
     
-        axes[-1].set_xlabel('Time (s)')
+        if total_plots == 1:
+            axes = [axes]
     
+        plot_idx = 0
+        for field_key, entry in tracked_fields.items():
+            color = color_map.get(field_key, "black")
+            label = label_map.get(field_key, field_key)
+            for point_idx, (x, y, z) in enumerate(entry["points"]):
+                data_series = entry["data"][point_idx]
+                ax = axes[plot_idx]
+                ax.plot(
+                    time_array,
+                    data_series,
+                    color=color,
+                    linewidth=1.5,
+                    marker='o',
+                    markersize=4,
+                    label=label
+                   )
+                ax.set_title(f"{label} at (x={x:.3f}, y={y:.3f}, z={z:.3f})")
+                ax.set_ylabel(label)
+                ax.grid(True, alpha=0.3)
+                plot_idx += 1
+    
+        axes[-1].set_xlabel("Time (s)")
         plt.tight_layout()
         plt.show()
+
 
     def plot_source(self, source_data):
         num_steps = len(source_data)
@@ -735,7 +792,7 @@ class Visualizer:
     def save_to_vtk(self, field, resolution):
         vol_grid = self._get_volume_grid(field, resolution)
         file_name=f't_{self.time_stepper.current_time_step:0>8}.vti'
-        vol_grid.save(f"./outputs/vtk_data/{file_name}")
+        vol_grid.save(f"{output_path}/vtk_data/{file_name}")
 
     def show(self):
         self.plotter.show()

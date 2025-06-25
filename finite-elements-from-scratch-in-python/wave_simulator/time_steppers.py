@@ -1,6 +1,7 @@
 import pickle
 import gmsh
 import numpy as np
+from logging import getLogger
 from wave_simulator.physics import LinearAcoustics
 
 
@@ -219,7 +220,13 @@ class LowStorageRungeKutta:
         self.current_time_step += 1
 
     def _log_info(self):
-        print(f"Final time: {self.t_final}s")
-        print(f"Time step size: {self.dt:.6g}s")
-        print(f"Total Number of timesteps: {self.num_time_steps}")
-        print("......... Running simulation .........")
+        logger = getLogger("simlog")
+        logger.info(f"Final time: {self.t_final}s")
+        logger.info(f"Time step size: {self.dt:.6g}s")
+        logger.info(f"Total Number of timesteps: {self.num_time_steps}")
+        logger.info("......... Running simulation .........")
+
+        #print(f"Final time: {self.t_final}s")
+        #print(f"Time step size: {self.dt:.6g}s")
+        #print(f"Total Number of timesteps: {self.num_time_steps}")
+        #print("......... Running simulation .........")

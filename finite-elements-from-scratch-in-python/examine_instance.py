@@ -21,7 +21,7 @@ def main():
         frame = 0
 
     # Construct file path
-    file_path = f'./outputs/data/t_{frame:08d}.pkl'
+    file_path = f'./outputs/a0.1_f100_h0.007_d8.0_c3.0_8d1480f5/data/t_{frame:08d}.pkl'
 
     # retrieve simulator object
     with open(file_path, 'rb') as file:
@@ -38,10 +38,10 @@ def main():
     #visualizer.save_to_vtk(pressure_field, 50)
 
     #visualizer.plot_source(simulator.source_data)
-    boundary = simulator.mesh.boundary_face_node_indices
-    source_nodes = boundary[simulator.physics.source_nodes]
+    #boundary = simulator.mesh.boundary_face_node_indices
+    #source_nodes = boundary[simulator.physics.source_nodes]
     #visualizer.add_node_list(source_nodes)
-    visualizer.plot_tracked_points(simulator.point_data, simulator.tracked_points)
+    visualizer.plot_tracked_points(simulator.tracked_fields)
     visualizer.plot_energy(simulator.energy_data,
                            simulator.kinetic_data,
                            simulator.potential_data,
