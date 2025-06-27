@@ -228,8 +228,8 @@ class Mesh3d:
         #density = [1016, 2000, 1063] # kg/m^3
         #speed = [3.0 , 1.5] # m/s
         #density = [8.0, 1.0] # kg/m^3
-        speed = [self.outer_speed, self.inclusion_speed]  # physical group tags 1, 2
-        density = [self.outer_density, self.inclusion_density]
+        speed = [self.inclusion_speed, self.outer_speed]  # physical group tags 1, 2
+        density = [self.inclusion_density, self.outer_density]
 
         dim = 3
         physical_groups = gmsh.model.getPhysicalGroups(dim)

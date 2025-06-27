@@ -21,7 +21,7 @@ def main():
         frame = 0
 
     # Construct file path
-    file_path = f'./outputs/a0.1_f100_h0.007_d8.0_c3.0_8d1480f5/data/t_{frame:08d}.pkl'
+    file_path = f'./outputs/a0.1_f100_h0.007_d0.5_c3.0_ab2c7f1a/data/t_{frame:08d}.pkl'
 
     # retrieve simulator object
     with open(file_path, 'rb') as file:
@@ -49,7 +49,7 @@ def main():
     #visualizer.add_field_3d(pressure_field, resolution=50)
     #visualizer.add_cell_averages(pressure_field)
     #visualizer.add_inclusion_boundary()
-    visualizer.add_nodes_3d(p_field)
+    #visualizer.add_nodes_3d(p_field)
     #visualizer.add_wave_speed()
     visualizer.show()
 

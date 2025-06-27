@@ -9,7 +9,6 @@ from wave_simulator.finite_elements import LagrangeElement
 class Visualizer:
     def __init__(self, time_stepper, grid=True, save=True):
         self.time_stepper = time_stepper
-        self.physics = time_stepper.physics
         self.mesh = time_stepper.physics.mesh
         self.plotter = pv.Plotter(off_screen=save)
         if not gmsh.isInitialized():
@@ -262,7 +261,7 @@ class Visualizer:
             opacity=[0.9, 0.7, 0.5, 0.5, 0, 0.5, 0.5, 0.7, 0.9],
             #opacity=[0.01, 0.05, 0.06,  0.08, 0.09, 0.2, 0.3],
             #clim=[-.00001,.00001],
-            clim=[-.20,.20],
+            clim=[-.05,.05],
             point_size=10,
             render_points_as_spheres=True
         )
@@ -376,9 +375,9 @@ class Visualizer:
             normal_vector_origin = np.column_stack((x_origin, y_origin, z_origin))
             
             # Extract normal vectors for the given element
-            nx = self.physics.mesh.nx[:, cell]
-            ny = self.physics.mesh.ny[:, cell]
-            nz = self.physics.mesh.nz[:, cell]
+            nx = self.mesh.nx[:, cell]
+            ny = self.mesh.ny[:, cell]
+            nz = self.mesh.nz[:, cell]
             
             # Stack into normal vectors
             normal_vector_direction = np.column_stack((nx, ny, nz))

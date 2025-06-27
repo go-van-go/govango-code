@@ -105,13 +105,60 @@ class Simulator:
             t = time*self.time_stepper.dt
             self.source_data[time] = self.physics._get_source_pressure(t)
 
+#    def _save_data(self):
+#        visualizer = self.visualizer  # backup
+#        self.visualizer = None        # remove for pickling
+#        file_name=f't_{self.time_stepper.current_time_step:0>8}'
+#        with open(f'{self.output_path}/data/{file_name}.pkl', 'wb') as f:
+#            pickle.dump(self, f)
+#        self.visualizer = visualizer  # restore after saving
+
     def _save_data(self):
-        visualizer = self.visualizer  # backup
-        self.visualizer = None        # remove for pickling
+        # Create minimal mesh data for visualization
+        mesh_data = {
+            'x': self.mesh.x,
+            'y': self.mesh.y,
+            'z': self.mesh.z,
+            'vertex_coordinates': self.mesh.vertex_coordinates,
+            'cell_to_vertices': self.mesh.cell_to_vertices,
+            'nx': self.mesh.nx,
+            'ny': self.mesh.ny,
+            'nz': self.mesh.nz,
+            'reference_element': self.mesh.reference_element,
+            'speed_per_cell': self.mesh.speed[0,:],  # First row only
+            'density_per_cell': self.mesh.density[0,:]  # First row only
+        }
+
+        # Include simulator tracking data if available
+        simulator_data = {}
+        if hasattr(self, 'tracked_fields') and self.tracked_fields:
+            simulator_data['tracked_fields'] = self.tracked_fields
+        if hasattr(self, 'energy_data') and self.energy_data is not None:
+            simulator_data['energy_data'] = self.energy_data[:self.energy_index] if self.energy_index > 0 else []
+        if hasattr(self, 'kinetic_data') and self.kinetic_data is not None:
+            simulator_data['kinetic_data'] = self.kinetic_data[:self.energy_index] if self.energy_index > 0 else []
+        if hasattr(self, 'potential_data') and self.potential_data is not None:
+            simulator_data['potential_data'] = self.potential_data[:self.energy_index] if self.energy_index > 0 else []
+        if hasattr(self, 'source_data') and self.source_data is not None:
+            simulator_data['source_data'] = self.source_data
+
+        data = {
+            'time_step': self.time_stepper.current_time_step,
+            'time': self.time_stepper.t,
+            'dt': self.time_stepper.dt,
+            'fields': {
+                'p': self.physics.p,
+                'u': self.physics.u,
+                'v': self.physics.v,
+                'w': self.physics.w
+            },
+            'mesh': mesh_data,
+            'simulator': simulator_data
+        }
+
         file_name=f't_{self.time_stepper.current_time_step:0>8}'
-        with open(f'{self.output_path}/data/{file_name}.pkl', 'wb') as f:
-            pickle.dump(self, f)
-        self.visualizer = visualizer  # restore after saving
+        with open(f'{self.output_path}/data/t_{file_name}.pkl', 'wb') as f:
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def _save_image(self):
         if self.visualizer == None:
