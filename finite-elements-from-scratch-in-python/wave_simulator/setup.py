@@ -102,23 +102,21 @@ class SimulationSetup:
             t_final=cfg.solver.total_time,
         )
 
-        sim = Simulator(time_stepper)
-        sim.set_save_intervals(
-            image=cfg.output_intervals.image,
-            data=cfg.output_intervals.data,
-            points=cfg.output_intervals.points,
-            energy=cfg.output_intervals.energy,
-        )
-        sim.track_points(
-            pressure=cfg.receivers.pressure,
-            x=cfg.receivers.x_velocity,
-            y=cfg.receivers.y_velocity,
-            z=cfg.receivers.z_velocity
-        )
-        sim.output_path = self.output_path
-        mesh.output_path = self.output_path
+        sim = Simulator(time_stepper,
+                        output_path=self.output_path,
+                        save_image_interval = cfg.output_intervals.image,
+                        save_points_interval = cfg.output_intervals.points,
+                        save_data_interval = cfg.output_intervals.data,
+                        save_energy_interval = cfg.output_intervals.energy,
+                        pressure_reciever_locations=cfg.receivers.pressure,
+                        u_velocity_reciever_locations=cfg.receivers.x_velocity,
+                        v_velocity_reciever_locations=cfg.receivers.y_velocity,
+                        w_velocity_reciever_locations=cfg.receivers.z_velocity
+                        )
 
-        if sim.visualizer:
-            sim.visualizer.output_path = self.output_path
+        #mesh.output_path = self.output_path
+
+        #if sim.visualizer:
+        #    sim.visualizer.output_path = self.output_path
 
         return sim

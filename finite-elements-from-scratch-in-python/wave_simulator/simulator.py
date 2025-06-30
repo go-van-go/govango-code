@@ -6,42 +6,45 @@ from wave_simulator.mesh import Mesh3d
 from wave_simulator.physics import LinearAcoustics
 from wave_simulator.time_steppers import LowStorageRungeKutta
 from wave_simulator.visualizer import Visualizer
+from wave_simulator.spatial_evaluator import SpatialEvaluator
 
 class Simulator:
-    def __init__(self, time_stepper: LowStorageRungeKutta = None, load_file: str = None):
+    def __init__(self,
+                 time_stepper: LowStorageRungeKutta,
+                 output_path,
+                 save_image_interval,
+                 save_points_interval,
+                 save_data_interval,
+                 save_energy_interval,
+                 pressure_reciever_locations,
+                 u_velocity_reciever_locations,
+                 v_velocity_reciever_locations,
+                 w_velocity_reciever_locations):
+        self.output_path = output_path
         self.time_stepper = time_stepper
         self.physics = self.time_stepper.physics
         self.mesh = self.physics.mesh
+        self.spatial_evaluator = SpatialEvaluator(self.mesh)
         self.t_final = self.time_stepper.t_final
-        self.visualizer = Visualizer(self.time_stepper)
 
-        self.save_image_interval = 0
-        self.visualizer.save_image_interval = 0
-        self.save_data_interval = 0
-        self.save_points_interval = 0
-        self.save_vtk_interval = 0
+        self.save_image_interval = save_image_interval
+        self.save_data_interval = save_data_interval
+        self.save_points_interval = save_points_interval
+        self.save_energy_interval = save_energy_interval
 
-        self.tracked_points = []
+        self.track_points(
+            pressure_reciever_locations,
+            u_velocity_reciever_locations,
+            v_velocity_reciever_locations,
+            w_velocity_reciever_locations
+        )
+
         self.energy_index = 0
         self._get_source_data()
 
-    def set_save_intervals(self,
-                           image=None,
-                           data=None,
-                           points=None,
-                           energy=None,
-                           vtk=None):
-        if image is not None:
-            self.save_image_interval = image
-        if data is not None:
-            self.save_data_interval = data
-        if points is not None:
-            self.save_points_interval = points
-        if energy is not None:
-            self.save_energy_interval = energy
-            self.initialize_energy_array()
-        if vtk is not None:
-            self.save_vtk_interval = vtk
+        self.data = self._get_data()
+        self.visualizer = Visualizer(self.data)
+        self.initialize_energy_array()
 
     def initialize_energy_array(self):
         self.num_readings = math.ceil(self.time_stepper.num_time_steps / self.save_energy_interval)
@@ -91,8 +94,6 @@ class Simulator:
                 self._save_tracked_points()
             if self.save_energy_interval and t_step % self.save_energy_interval == 0:
                 self._save_energy()
-            if self.save_vtk_interval and t_step % self.save_vtk_interval == 0:
-               self._save_to_vtk(self.physics.p, resolution=40)
 
             #self.time_stepper.advance_time_step_rk_with_force_term()
             self.time_stepper.advance_time_step()
@@ -113,7 +114,7 @@ class Simulator:
 #            pickle.dump(self, f)
 #        self.visualizer = visualizer  # restore after saving
 
-    def _save_data(self):
+    def _get_data(self):
         # Create minimal mesh data for visualization
         mesh_data = {
             'x': self.mesh.x,
@@ -125,6 +126,7 @@ class Simulator:
             'ny': self.mesh.ny,
             'nz': self.mesh.nz,
             'reference_element': self.mesh.reference_element,
+            'initialize_gmsh': self.mesh.initialize_gmsh,
             'speed_per_cell': self.mesh.speed[0,:],  # First row only
             'density_per_cell': self.mesh.density[0,:]  # First row only
         }
@@ -134,18 +136,19 @@ class Simulator:
         if hasattr(self, 'tracked_fields') and self.tracked_fields:
             simulator_data['tracked_fields'] = self.tracked_fields
         if hasattr(self, 'energy_data') and self.energy_data is not None:
-            simulator_data['energy_data'] = self.energy_data[:self.energy_index] if self.energy_index > 0 else []
+            simulator_data['energy_data'] = self.energy_data
         if hasattr(self, 'kinetic_data') and self.kinetic_data is not None:
-            simulator_data['kinetic_data'] = self.kinetic_data[:self.energy_index] if self.energy_index > 0 else []
+            simulator_data['kinetic_data'] = self.kinetic_data
         if hasattr(self, 'potential_data') and self.potential_data is not None:
-            simulator_data['potential_data'] = self.potential_data[:self.energy_index] if self.energy_index > 0 else []
+            simulator_data['potential_data'] = self.potential_data
         if hasattr(self, 'source_data') and self.source_data is not None:
             simulator_data['source_data'] = self.source_data
 
         data = {
-            'time_step': self.time_stepper.current_time_step,
-            'time': self.time_stepper.t,
+            'current_time_step': self.time_stepper.current_time_step,
+            'current_time': self.time_stepper.t,
             'dt': self.time_stepper.dt,
+            't_final': self.t_final,
             'fields': {
                 'p': self.physics.p,
                 'u': self.physics.u,
@@ -153,36 +156,35 @@ class Simulator:
                 'w': self.physics.w
             },
             'mesh': mesh_data,
-            'simulator': simulator_data
+            'simulator': simulator_data,
+            'output_path': self.output_path,
+            'save_image_interval' : self.save_image_interval,
+            'save_data_interval' : self.save_data_interval,
+            'save_points_interval': self.save_points_interval,
+            'save_energy_interval': self.save_energy_interval,
         }
-
-        file_name=f't_{self.time_stepper.current_time_step:0>8}'
-        with open(f'{self.output_path}/data/t_{file_name}.pkl', 'wb') as f:
-            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        return data
+        
+    def _save_data(self):
+        if not hasattr(self, '_save_index'):
+            self._save_index = 0  # initialize the save index
+    
+        self.data = self._get_data()
+        timestep_str = f'{self.time_stepper.current_time_step:0>8}'
+        save_index_str = f'{self._save_index:0>8}'
+    
+        file_name = f'{save_index_str}_t{timestep_str}.pkl'
+        file_path = f'{self.output_path}/data/{file_name}'
+    
+        with open(file_path, 'wb') as f:
+            pickle.dump(self.data, f, protocol=pickle.HIGHEST_PROTOCOL)
+    
+        self._save_index += 1  # increment the save index after saving
 
     def _save_image(self):
-        if self.visualizer == None:
-            self.visualizer = Visualizer(self.time_stepper)
-        self.visualizer.plotter.clear()
-        self.visualizer._show_grid()
-        self.visualizer.add_inclusion_boundary()
-        #self.visualizer.add_cell_averages(self.time_stepper.physics.p)
-        self.visualizer.add_nodes_3d(self.time_stepper.physics.p)
-        #self.visualizer.add_nodes_3d(self.time_stepper.physics.w)
+        self.data = self._get_data()
+        self.visualizer.set_data(self.data)
         self.visualizer.save()
-
-    def _save_to_vtk(self, field, resolution=40):
-        self.visualizer.save_to_vtk(field, resolution)
-
-    #def _save_tracked_points(self):
-    #    # get field
-    #    field = self.physics.p
-    #    # Sample field at tracked points
-    #    for i, point in enumerate(self.tracked_points):
-    #        value = self.visualizer.eval_at_point(point[0], point[1], point[2], field[i])
-    #        self.point_data[i,self.column_index] = value
-    #    # increment column index
-    #    self.column_index += 1
 
     def _save_tracked_points(self):
         for name, field in self.tracked_fields.items():
@@ -191,7 +193,7 @@ class Simulator:
             field_array = getattr(self.physics, field["field_name"])
     
             for i, (x, y, z) in enumerate(points):
-                values[i, self.column_index] = self.visualizer.eval_at_point(x, y, z, field_array)
+                values[i, self.column_index] = self.spatial_evaluator.eval_at_point(x, y, z, field_array)
     
         self.column_index += 1
 

@@ -1,5 +1,6 @@
 import numpy as np
 import pyvista as pv
+
 import matplotlib.pyplot as plt
 import gmsh
 import math
@@ -7,21 +8,60 @@ from wave_simulator.reference_element_operators import ReferenceElementOperators
 from wave_simulator.finite_elements import LagrangeElement
 
 class Visualizer:
-    def __init__(self, time_stepper, grid=True, save=True):
-        self.time_stepper = time_stepper
-        self.mesh = time_stepper.physics.mesh
-        self.plotter = pv.Plotter(off_screen=save)
+    def __init__(self, data, grid=True):
+        # create plotter
+        self.plotter = pv.Plotter(off_screen=False)
+
+        # set visualizer data
+        self.set_data(data)
+
+        # initialize gmsh if needed
         if not gmsh.isInitialized():
-            self.mesh.initialize_gmsh()
+            self.mesh["initialize_gmsh"]()
 
         # Reason for element_offset- Gmsh counts lower order elements like points and lines
         # before counting tetrahedrons. This code calls the first tetraheron element '0'
         self._element_offset, _ = gmsh.model.mesh.getElementsByType(4)
 
-        self.get_domain_parameters()
+        # create grid
         if grid:
             self._show_grid()
+        # set camera
         self.set_camera()
+
+    def set_data(self, data):
+        self.data = data
+        self.extract_data(data)
+        self.plotter.clear()
+
+    def extract_data(self, data):
+        self.mesh = data["mesh"]
+        self.x = self.mesh["x"]
+        self.y = self.mesh["y"]
+        self.z = self.mesh["z"]
+        self.fields = data["fields"]
+        self.p = self.fields["p"]
+        self.u = self.fields["u"]
+        self.v = self.fields["v"]
+        self.w = self.fields["w"]
+
+        self.tracked_fields = data.get("simulator", {}).get("tracked_fields", {})
+        self.energy_data = data.get("simulator", {}).get("energy_data", [])
+        self.kinetic_data = data.get("simulator", {}).get("kinetic_data", [])
+        self.potential_data = data.get("simulator", {}).get("potential_data", [])
+        self.source_data = data.get("simulator", {}).get("source_data", None)
+
+        self.dt = data["dt"]
+        self.t_final = data["t_final"]
+        self.current_time = data["current_time"]
+        self.current_time_step = data["current_time_step"]
+        self.output_path = data.get("output_path", "./")
+        self.save_image_interval = data["save_image_interval"]
+        self.save_data_interval  = data["save_data_interval"]
+        self.save_points_interval = data["save_points_interval"]
+        self.save_energy_interval = data["save_energy_interval"]
+
+        self.get_domain_parameters()
 
     def set_camera(self):
         camera_position = [
@@ -35,219 +75,30 @@ class Visualizer:
 
     def get_domain_parameters(self):
         # get minimum coordinate values
-        self.x_min = np.min(self.mesh.x)
-        self.y_min = np.min(self.mesh.y)
-        self.z_min = np.min(self.mesh.z)
+        self.x_min = np.min(self.x)
+        self.y_min = np.min(self.y)
+        self.z_min = np.min(self.z)
 
         # get maximum coordinate values
-        self.x_max = np.max(self.mesh.x)
-        self.y_max = np.max(self.mesh.y)
-        self.z_max = np.max(self.mesh.z)
+        self.x_max = np.max(self.x)
+        self.y_max = np.max(self.y)
+        self.z_max = np.max(self.z)
 
     def _show_grid(self):
         self.plotter.show_grid()
 
-    def _get_grid_coordinates(self, origin, dimensions, resolution):
-        # Generate grid points with correct point counts
-        x = np.linspace(origin[0], origin[0] + dimensions[0], resolution)
-        y = np.linspace(origin[1], origin[1] + dimensions[1], resolution)
-        z = np.linspace(origin[2], origin[2] + dimensions[2], resolution)
-        
-        # Create mesh grid with ij indexing (more natural for volumes)
-        X, Y, Z = np.meshgrid(x, y, z, indexing='ij')  # Note 'ij' instead of 'xy'
-        
-        return np.column_stack((X.ravel(order='F'), Y.ravel(order='F'), Z.ravel(order='F')))
-
-    def _get_voxel_data(self, field, coordinates):
-        """ get field value in each 3D voxel"""
-        # Initialize 3D numpy array to hold the volume data
-        voxel_data = np.zeros(len(coordinates))
-
-        # Iterate through each grid point and fill the 3D array
-        for i, (x, y, z) in enumerate(coordinates):
-            voxel_data[i] = self.eval_at_point(x, y, z, field)
-
-        return voxel_data
-
-    def _get_grid_parameters(self, resolution):
-         # Define parameters
-        x_dim = self.x_max - self.x_min
-        y_dim = self.y_max - self.y_min
-        z_dim = self.z_max - self.z_min
-        
-        origin = (self.x_min, self.y_min, self.z_min)
-        dimensions = (x_dim, y_dim, z_dim)
-        spacing = (dimensions[0]/resolution,
-                   dimensions[1]/resolution,
-                   dimensions[2]/resolution)
-
-        return origin, dimensions, spacing
-
-    def _get_volume_grid(self, field, resolution):
-        """ Add a 3D field visualization tothe plotter """
-        # get grid parameters
-        origin, dimensions, spacing = self._get_grid_parameters(resolution)
-
-        # get grid coordinates
-        coordinates = self._get_grid_coordinates(origin, dimensions, resolution)
-
-        # get volume data
-        volume_data = self._get_voxel_data(field, coordinates)
-  
-        # Create PyVista ImageData (Structured Grid)
-        grid = pv.ImageData(
-            origin=origin,
-            dimensions=(resolution, resolution, resolution),
-            spacing=spacing,
-        )
-    
-        # Assign volume data as the active scalars
-        grid.point_data["field values"] = volume_data
-
-        return grid
-       
-    def add_field_3d(self, field, resolution=40):
-        """ Add a 3D field visualization tothe plotter """
-        print("... Creating 3D voxel grid of data ... ")
-        vol_grid = self._get_volume_grid(field, resolution)
-
-        # Add volume to the plotter
-        vol = self.plotter.add_volume(
-            vol_grid,
-            opacity = [0, 0, 0, 0.1, 0.3, 0.3, 0.9, 1,1]
-        )
-
-        # Add clipping widgets
-        #for norm in ['-x', '-y']:
-        #    self.plotter.add_volume_clip_plane(
-        #        vol,
-        #        normal=norm,
-        #        interaction_event='always',
-        #        normal_rotation=False,
-        #    )
-
-        self.plotter.add_mesh_slice(vol,
-                                    normal='-x',
-                                    interaction_event='always')
-
-    def add_field_point_cloud(self, field, resolution=50):
-        """ Add a 3D field visualization to the plotter """
-        # Get the volume data, and spacing
-        volume_data, _ = self._get_voxel_data(field, coordinates)
-            
-        # Add the points to the plot with colors and opacity
-        self.plotter.add_points(
-            coordinates,
-            scalars=volume_data,
-            cmap="viridis",  # Use any colormap you prefer
-            #opacity=opacity_values,#'linear',#0.001,#opacity_values,  # Set per-point opacity
-            opacity='linear',
-            point_size=10,
-            render_points_as_spheres=True
-        )
-
-    def get_element(self, x, y, z):
-        """ Find which element corresponds to a point in the mesh """
-        # dimension
-        dim = 3
-
-        # find element
-        element = gmsh.model.mesh.getElementByCoordinates(x, y, z, dim)[0] - self._element_offset[0]
-        return element
-
-    def eval_at_point(self, x, y, z, field):
-        """ evaluate a given field at any point in the domain."""
-        # get element
-        element = self.get_element(x, y, z)
-
-        # get field vlaues
-        values = field[:, element]
-
-        # get inverse vandermonde to evaluate weighted basis functions
-        invV = self.mesh.reference_element_operators.inverse_vandermonde_3d
-
-        # compute the basis function weights
-        weights = invV @ values
-
-        # initialize solution
-        solution = 0.0
-
-        # map point to reference tetrahedron
-        r, s, t = self._map_to_reference_tetrahedron(x, y, z, element)
-
-        # get polynomial degree
-        n = self.mesh.reference_element.n
-
-        # loop over all basis functions 
-        column_index = 0
-        for i in range(n + 1):
-            for j in range(n - i + 1):
-                for k in range(n - i - j + 1):
-                    # m is the canonical index for a polynomial basis, expression is found in
-                    # Hesthaven and Warburton pg 411
-                    m = (
-                        1 + (11 + 12*n + 3*n**2) * i / 6 + (2*n + 3) * j / 2 + k
-                        - (2 + n) * i**2 / 2 - i * j - j**2 / 2 + i**3 / 6
-                    )
-                    # adjust for 0 based indexing and turn to integer
-                    m = math.ceil(m - 1)
-                    # evaluate basis function
-                    basis_funciton_contribution = \
-                        self.mesh.reference_element.eval_3d_basis_function([r],[s],[t],i,j,k)
-                    # add weigted solution to final solution
-                    solution += weights[m] * basis_funciton_contribution
-
-        return solution
-
-    def _map_to_reference_tetrahedron(self, x, y, z, cell):
-        """
-        Maps a point (x_target, y_target, z_target) in physical space to reference
-        coordinates (r, s, t) for a tetrahedral element defined by `vertices`.
-        This works by inverting the mapping in Hesthaven and Warburton pg 409
-        """
-        cell_to_vertices = self.mesh.cell_to_vertices
-
-        # get mesh tetrahedron vertices
-        vx = self.mesh.x_vertex
-        vy = self.mesh.y_vertex
-        vz = self.mesh.z_vertex
-
-        # get indices for specific element
-        va = cell_to_vertices[cell, 0].T
-        vb = cell_to_vertices[cell, 1].T
-        vc = cell_to_vertices[cell, 2].T
-        vd = cell_to_vertices[cell, 3].T
-        
-        # Construct Jacobian matrix for the inverse mapping
-        J = np.array([
-            [vx[vb] - vx[va], vx[vc] - vx[va], vx[vd] - vx[va]],
-            [vy[vb] - vy[va], vy[vc] - vy[va], vy[vd] - vy[va]],
-            [vz[vb] - vz[va], vz[vc] - vz[va], vz[vd] - vz[va]]
-        ])
-
-        # Right-hand side
-        b = np.array([
-            2*x + vx[va] - vx[vb] - vx[vc] - vx[vd],
-            2*y + vy[va] - vy[vb] - vy[vc] - vy[vd],
-            2*z + vz[va] - vz[vb] - vz[vc] - vz[vd]
-        ])
-        
-        # Solve for (r, s, t)
-        rst = np.linalg.solve(J, b)
-        return tuple(rst)
-
     def add_nodes_3d(self, field):
         """Plot nodes on the mesh with colors and opacity based on solution values."""
         # Extract x, y, z coordinates for the nodes
-        x = np.ravel(self.mesh.x, order='F')
-        y = np.ravel(self.mesh.y, order='F')
-        z = np.ravel(self.mesh.z, order='F')
+        x = np.ravel(self.mesh["x"], order='F')
+        y = np.ravel(self.mesh["y"], order='F')
+        z = np.ravel(self.mesh["z"], order='F')
         
         # Stack into nodal points
         node_coordinates = np.column_stack((x, y, z))
         
         # Flatten the solution matrix to align with the coordinates
-        field = np.ravel(field, order='F')
+        field = np.ravel(self.fields[field], order='F')
         #field[self.mesh.exterior_face_node_indices] = 0
         #opacity = np.abs(field)
 
@@ -261,7 +112,7 @@ class Visualizer:
             opacity=[0.9, 0.7, 0.5, 0.5, 0, 0.5, 0.5, 0.7, 0.9],
             #opacity=[0.01, 0.05, 0.06,  0.08, 0.09, 0.2, 0.3],
             #clim=[-.00001,.00001],
-            clim=[-.05,.05],
+            clim=[-.02,.02],
             point_size=10,
             render_points_as_spheres=True
         )
@@ -273,9 +124,9 @@ class Visualizer:
         #z = self.mesh.z.ravel(order='F')[nodes]
         
         interior_values = self.mesh.interior_face_node_indices
-        x = self.mesh.x.ravel(order='F')[interior_values]
-        y = self.mesh.y.ravel(order='F')[interior_values]
-        z = self.mesh.z.ravel(order='F')[interior_values]
+        x = self.x.ravel(order='F')[interior_values]
+        y = self.y.ravel(order='F')[interior_values]
+        z = self.z.ravel(order='F')[interior_values]
         x = x[nodes]
         y = y[nodes]
         z = z[nodes]
@@ -295,7 +146,6 @@ class Visualizer:
             render_points_as_spheres=True
         )
         
-
     def add_cell_nodes(self, cell_list):
         # Extract x, y, z coordinates for the nodes in the specified elements
         x = self.mesh.x[:, cell_list].flatten()
@@ -535,39 +385,6 @@ class Visualizer:
                 opacity=0.4
             )
  
-
-#    def add_mesh(self):
-#        """ add the edges of the entire 3D mesh """
-#        # Construct a cells object to make a pyvista unstructuredGrid
-#        cells = np.zeros(self.mesh.num_cells * 5, dtype='int')
-#        index = 0
-#        for i in range(self.mesh.num_cells * 5):
-#            if i % 5 == 0:
-#                cells[i] = 4
-#            else:
-#                cells[i] = index
-#                index += 1
-#        cell_types = np.repeat(np.array([pv.CellType.TETRA]), self.mesh.num_cells)
-#        points = self.mesh.vertex_coordinates[self.mesh.cell_to_vertices.ravel()]
-#    
-#        # create a pyvista unstructured grid
-#        grid = pv.UnstructuredGrid(
-#            cells,
-#            cell_types,
-#            points,
-#        )
-           
-        # Add clipping widgets
-        #for norm in ['-x', '-y']:
-        #    self.plotter.add_mesh_clip_plane(
-        #        grid,
-        #        normal=norm,
-        #        crinkle=True,
-        #        interaction_event='always',
-        #        normal_rotation=False,
-        #        color='#5e81ac'
-        #    )
- 
     def add_mesh_boundary(self):
         """ Plot mesh edges on boundary """
         # create cells and cell_types to pyvista unstructured grid
@@ -586,7 +403,6 @@ class Visualizer:
             style='wireframe',
             color='black'
         )
-
 
     def visualize_array(self, array):
         """
@@ -652,82 +468,67 @@ class Visualizer:
                               opacity=0.1,
                               show_edges=True)
 
-    def enter_4th_dimension(self, resolution=50):
-        """ Add a 3D field visualization tothe plotter """
-        origin = (0,0,0)
-        dimensions = (1,1,1)
-        spacing = dimensions[0]/resolution
-        coordinates = self._get_grid_coordinates(origin, dimensions, resolution)
-       
-        cloud = pv.PolyData(coordinates)
-        
-        # Plot using volume rendering
-        plotter = pv.Plotter()
-        plotter.add_mesh(
-            cloud,
-            color='blue',
-            point_size=2,
-            render_points_as_spheres=True
-        )
-        
-        plotter.show()
-
     def save(self):
-        file_name=f't_{self.time_stepper.current_time_step:0>8}.png'
-        self.plotter.screenshot(f'{self.output_path}/images/{file_name}')
+        file_name = f't_{self.current_time_step:0>8}.png'
+        output_file = f'{self.output_path}/images/{file_name}'
+    
+        try:
+            # Backup current plotter
+            old_plotter = self.plotter
+    
+            # Create a new off-screen plotter
+            self.plotter = pv.Plotter(off_screen=True)
+    
+            self.plotter.clear()
+            self.set_camera()
+            self._show_grid()
+            self.add_inclusion_boundary()
+            self.add_nodes_3d("p")
+            self.plotter.screenshot(output_file)
+            self.plotter.close()
+        except Exception as e:
+            print(f"Failed to save screenshot to {output_file}: {e}")
+            raise
+        finally:
+            # Restore original plotter
+            self.plotter = old_plotter
 
-    def plot_energy(self, energy_data, kinetic_data, potential_data, interval):
-        num_steps = len(energy_data)-2
-        dt = self.time_stepper.dt * interval
+    def plot_energy(self) :
+        #num_steps = len(self.energy_data)
+        interval = self.save_energy_interval
+        t = self.current_time_step
+        dt = self.dt #dt * self.data["save_energy_interval"]
+        num_steps = t // interval
         time_array = np.arange(num_steps) * dt
         fig, ax = plt.subplots()
-        ax.plot(time_array, energy_data[:-2], marker='o', label='Total Energy')
-        ax.plot(time_array, kinetic_data[:-2], marker='x', label='KE')
-        ax.plot(time_array, potential_data[:-2], marker='*', label='PE')
+        ax.plot(time_array, self.energy_data[:num_steps], marker='o', label='Total Energy')
+        ax.plot(time_array, self.kinetic_data[:num_steps], marker='x', label='KE')
+        ax.plot(time_array, self.potential_data[:num_steps], marker='*', label='PE')
         ax.legend()
         ax.set_title(f'Global Energy (reflective boundary conditions)')
         ax.set_ylabel('Energy')
         ax.set_xlabel('Time')
         ax.grid(True, alpha=0.3)
         plt.show()
-        
 
-   # def plot_tracked_points(self, point_data, tracked_points):
-   #     num_points, num_steps = point_data.shape
-   #     dt = self.time_stepper.dt * 10
-   #     time_array = np.arange(num_steps) * dt
-   # 
-   #     fig, axes = plt.subplots(num_points, 1, figsize=(10, 4 * num_points), sharex=True)
-   # 
-   #     if num_points == 1:
-   #         axes = [axes]  # Ensure axes is iterable
-   # 
-   #     for i in range(num_points):
-   #         x, y, z = tracked_points[i]
-   #         ax = axes[i]
-   #         ax.plot(time_array, point_data[i],
-   #                 marker='o', markersize=3,
-   #                 linestyle='-', linewidth=1,
-   #                 label=f'Point {i}')
-   #         ax.set_title(f'Pressure at (x={x:.2f}, y={y:.2f}, z={z:.2f})')
-   #         ax.set_ylabel('Pressure')
-   #         ax.grid(True, alpha=0.3)
-   # 
-   #     axes[-1].set_xlabel('Time (s)')
-   # 
-   #     plt.tight_layout()
-   #     plt.show()
-
-    def plot_tracked_points(self, tracked_fields: dict, dt_factor: int = 10):
+    def plot_tracked_points(self):
         """
-        Plot each field (pressure or velocity component) at each tracked point on a separate subplot.
+        Plot each field (pressure or velocity component) at each tracked point on a separate subplot,
+        but only include data up to current_time_step // save_points_interval.
+        Keep the x-axis representing the full simulation time.
         """
-        if not tracked_fields:
+        if not self.tracked_fields:
             print("No tracked field data to plot.")
             return
     
-        num_steps = next(iter(tracked_fields.values()))["data"].shape[1]
-        time_array = np.arange(num_steps) * self.time_stepper.dt * dt_factor
+        interval = self.data['save_points_interval']
+        dt = self.dt
+        t = self.current_time_step
+        total_steps = next(iter(self.tracked_fields.values()))["data"].shape[1]
+        num_steps = t // interval  # only show data up to this step
+    
+        # Time array for the truncated data
+        time_array = np.arange(num_steps) * dt * interval
     
         color_map = {
             "pressure": "purple",
@@ -742,19 +543,18 @@ class Visualizer:
             "z": "Velocity (w)"
         }
     
-        # Count total number of plots (one per point per field)
-        total_plots = sum(len(entry["points"]) for entry in tracked_fields.values())
+        total_plots = sum(len(entry["points"]) for entry in self.tracked_fields.values())
         fig, axes = plt.subplots(total_plots, 1, figsize=(10, 3.5 * total_plots), sharex=True)
     
         if total_plots == 1:
             axes = [axes]
     
         plot_idx = 0
-        for field_key, entry in tracked_fields.items():
+        for field_key, entry in self.tracked_fields.items():
             color = color_map.get(field_key, "black")
             label = label_map.get(field_key, field_key)
             for point_idx, (x, y, z) in enumerate(entry["points"]):
-                data_series = entry["data"][point_idx]
+                data_series = entry["data"][point_idx][:num_steps]  # truncate the data
                 ax = axes[plot_idx]
                 ax.plot(
                     time_array,
@@ -764,16 +564,16 @@ class Visualizer:
                     marker='o',
                     markersize=4,
                     label=label
-                   )
+                )
                 ax.set_title(f"{label} at (x={x:.3f}, y={y:.3f}, z={z:.3f})")
                 ax.set_ylabel(label)
                 ax.grid(True, alpha=0.3)
+                ax.set_xlim(0, self.t_final)  # set x-limits to full time
                 plot_idx += 1
     
         axes[-1].set_xlabel("Time (s)")
         plt.tight_layout()
         plt.show()
-
 
     def plot_source(self, source_data):
         num_steps = len(source_data)
@@ -787,11 +587,6 @@ class Visualizer:
         ax.set_xlabel('Time')
         ax.grid(True, alpha=0.3)
         plt.show()
-
-    def save_to_vtk(self, field, resolution):
-        vol_grid = self._get_volume_grid(field, resolution)
-        file_name=f't_{self.time_stepper.current_time_step:0>8}.vti'
-        vol_grid.save(f"{output_path}/vtk_data/{file_name}")
 
     def show(self):
         self.plotter.show()

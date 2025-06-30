@@ -21,35 +21,18 @@ def main():
         frame = 0
 
     # Construct file path
-    file_path = f'./outputs/a0.1_f100_h0.007_d0.5_c3.0_ab2c7f1a/data/t_{frame:08d}.pkl'
+    file_path = f'./outputs/a0.1_f20_h0.01_d1.0_c2.0_7949d73a/data/00000001_t{frame:08d}.pkl'
 
     # retrieve simulator object
     with open(file_path, 'rb') as file:
-        simulator = pickle.load(file)
+        data = pickle.load(file)
 
     # visualize 
-    p_field = simulator.time_stepper.physics.p
-    u_field = simulator.time_stepper.physics.u
-    v_field = simulator.time_stepper.physics.v
-    w_field = simulator.time_stepper.physics.w
-    visualizer = Visualizer(simulator.time_stepper, save=False)
-    visualizer.plotter.clear()
-    visualizer._show_grid()
-    #visualizer.save_to_vtk(pressure_field, 50)
-
-    #visualizer.plot_source(simulator.source_data)
-    #boundary = simulator.mesh.boundary_face_node_indices
-    #source_nodes = boundary[simulator.physics.source_nodes]
-    #visualizer.add_node_list(source_nodes)
-    visualizer.plot_tracked_points(simulator.tracked_fields)
-    visualizer.plot_energy(simulator.energy_data,
-                           simulator.kinetic_data,
-                           simulator.potential_data,
-                           simulator.save_energy_interval)
-    #visualizer.add_field_3d(pressure_field, resolution=50)
-    #visualizer.add_cell_averages(pressure_field)
-    #visualizer.add_inclusion_boundary()
-    #visualizer.add_nodes_3d(p_field)
+    visualizer = Visualizer(data)
+    visualizer.plot_tracked_points()
+    visualizer.plot_energy()
+    visualizer.add_inclusion_boundary()
+    visualizer.add_nodes_3d("p")
     #visualizer.add_wave_speed()
     visualizer.show()
 
