@@ -1,0 +1,148 @@
+import panel as pn
+import os
+import glob
+import pickle
+import matplotlib.pyplot as plt
+import pyvista as pv
+
+from wave_simulator.visualizer import Visualizer
+pn.extension('vtk')
+
+class UserInterface:
+    def __init__(self, outputs_dir='./outputs'):
+        self.outputs_dir = outputs_dir
+        self.sim_folders = self._get_sim_folders()
+
+        # Add a blank option at the start
+        sim_options = [""] + self.sim_folders
+
+
+        self.selected_folder = None
+        self.data_files = []
+        self.visualizer = None
+
+        self.sim_selector = pn.widgets.Select(name='Simulation Run', options=sim_options, value="")
+        #self.frame_slider = pn.widgets.IntSlider(name='Time', start=0, end=0, step=1)
+        self.frame_selector = pn.widgets.Select(name='Timestep', options=[])
+        self.refresh_button = pn.widgets.Button(name='Load Data', button_type='primary')
+        self.status_text = pn.pane.HTML("", height=20)
+
+        self.sim_selector.param.watch(self._update_folder, 'value')
+        self.refresh_button.on_click(self._load_frame)
+
+        self.show_3d_button = pn.widgets.Button(name='Show 3D', button_type='success')
+        self.show_3d_button.on_click(self._show_3d)
+
+        self.content = pn.Row()
+        self.panel = pn.Row(
+            pn.Column(
+                pn.pane.HTML("<h2>Simulation Viewer</h2>"),
+                self.sim_selector,
+                self.frame_selector,
+                self.refresh_button,
+                self.show_3d_button,  # <--- new button
+                self.status_text,
+            ),
+            pn.Column(
+                self.content
+            )
+        )
+
+
+    def _get_sim_folders(self):
+        return sorted([
+            f for f in os.listdir(self.outputs_dir)
+            if os.path.isdir(os.path.join(self.outputs_dir, f))
+        ])
+
+    def _update_folder(self, event):
+        if not event.new:
+            # Nothing selected, clear data
+            self.selected_folder = None
+            self.data_files = []
+            self.status_text.object = "<span style='color:gray'>Select a simulation run.</span>"
+            self.frame_selector.options = []
+            self.frame_selector.value = None
+            self.refresh_button.disabled = True
+            return
+        self.selected_folder = os.path.join(self.outputs_dir, event.new)
+        data_dir = os.path.join(self.selected_folder, "data")
+        self.data_files = sorted(glob.glob(f"{data_dir}/*.pkl"))
+
+        if not self.data_files:
+            self.status_text.object = f"<span style='color:red'>⚠️ No .pkl files found in: {data_dir}</span>"
+            self.frame_selector.options = []
+            self.frame_selector.value = None
+            self.refresh_button.disabled = True
+        else:
+            self.status_text.object = f"<span style='color:green'>✅ Found {len(self.data_files)} data files.</span>"
+            # Build a mapping of display label → file path
+            self.timestep_map = {}
+            options = []
+            for path in self.data_files:
+                time_str = os.path.basename(path).split("_t")[-1].split(".")[0]
+                label = f"t = {time_str}"
+                self.timestep_map[label] = path
+                options.append(label)
+            
+            self.frame_selector.options = options
+            self.frame_selector.value = options[0]
+
+            self.refresh_button.disabled = False
+
+    def _show_3d(self, event=None):
+        if self.visualizer is None:
+            self.status_text.object = "<span style='color:red'>⚠️ Load data before showing 3D.</span>"
+            return
+        try:
+            self.visualizer.add_nodes_3d("p")
+            self.visualizer.show()
+            self.status_text.object = "<span style='color:green'>✅ 3D view launched.</span>"
+        except Exception as e:
+            self.status_text.object = f"<span style='color:red'>❌ Error in 3D view: {e}</span>"
+
+    def _load_frame(self, event=None):
+        if not self.data_files:
+            self.status_text.object = "<span style='color:red'>⚠️ No data loaded.</span>"
+            return
+
+        try:
+            file_path = self.timestep_map[self.frame_selector.value]
+
+            with open(file_path, 'rb') as f:
+                data = pickle.load(f)
+
+            self.visualizer = Visualizer(data)
+            tracked_fig = self.visualizer.plot_tracked_points()
+            energy_fig = self.visualizer.plot_energy()
+
+            # Get image corresponding to current timestep
+            time_step = int(os.path.basename(file_path).split("_t")[-1].split(".")[0])
+            image_path = os.path.join(self.selected_folder, "images", f"t_{time_step:08d}.png")
+
+            image_pane = (
+                pn.pane.PNG(image_path, width=550)
+                if os.path.exists(image_path)
+                else pn.pane.Markdown("**⚠️ No image found for this timestep.**")
+            )
+
+            layout = pn.Row(
+                pn.Column(
+                    pn.pane.HTML("<b>Tracked Points</b>"),
+                    pn.pane.Matplotlib(tracked_fig, tight=True, height=900),
+                ),
+                pn.Column(
+                    pn.pane.HTML("<b>Energy Plot</b>"),
+                    pn.pane.Matplotlib(energy_fig, tight=True, width=550),
+                    pn.pane.HTML("<b>Snapshot</b>"),
+                    image_pane,
+                )
+            )
+
+            self.content.objects = [layout]
+            self.status_text.object = f"<span style='color:green'>✅ Loaded frame: {os.path.basename(file_path)}</span>"
+        except Exception as e:
+            self.status_text.object = f"<span style='color:red'>❌ Error loading frame: {e}</span>"
+
+    def show(self):
+        return self.panel
