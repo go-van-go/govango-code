@@ -1,7 +1,8 @@
-import panel as pn
 import os
 import glob
 import pickle
+import toml
+import panel as pn
 import matplotlib.pyplot as plt
 import pyvista as pv
 
@@ -30,6 +31,8 @@ class UserInterface:
         self.sim_selector.param.watch(self._update_folder, 'value')
         self.refresh_button.on_click(self._load_frame)
 
+        self.parameters_pane = pn.pane.HTML("<i>No parameters loaded.</i>", width=300)
+
         self.show_3d_button = pn.widgets.Button(name='Show 3D', button_type='success')
         self.show_3d_button.on_click(self._show_3d)
 
@@ -40,8 +43,10 @@ class UserInterface:
                 self.sim_selector,
                 self.frame_selector,
                 self.refresh_button,
-                self.show_3d_button,  # <--- new button
+                self.show_3d_button,
                 self.status_text,
+                pn.pane.HTML("<h3>Simulation Parameters</h3>"),
+                self.parameters_pane  # 👈 clean HTML, no markdown-it
             ),
             pn.Column(
                 self.content
@@ -89,6 +94,29 @@ class UserInterface:
             self.frame_selector.value = options[0]
 
             self.refresh_button.disabled = False
+
+        param_file = os.path.join(self.selected_folder, "parameters.toml")
+        if os.path.exists(param_file):
+            html = self._format_parameters(param_file)
+            self.parameters_pane.object = html
+        else:
+            self.parameters_pane.object = "<i>⚠️ No parameters.toml found.</i>"
+
+
+    def _format_parameters(self, file_path):
+        try:
+            parameters = toml.load(file_path)
+        except Exception as e:
+            return f"<b>❌ Failed to load parameters.toml:</b> {e}"
+    
+        html = ["<div style='font-family: monospace; font-size: 12px;'>"]
+        for section, values in parameters.items():
+            html.append(f"<h4>[{section}]</h4><ul style='margin-top: 0;'>")
+            for key, value in values.items():
+                html.append(f"<li><b>{key}</b>: {value}</li>")
+            html.append("</ul>")
+        html.append("</div>")
+        return "\n".join(html)
 
     def _show_3d(self, event=None):
         if self.visualizer is None:

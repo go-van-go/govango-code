@@ -112,7 +112,7 @@ class Visualizer:
             opacity=[0.9, 0.7, 0.5, 0.5, 0, 0.5, 0.5, 0.7, 0.9],
             #opacity=[0.01, 0.05, 0.06,  0.08, 0.09, 0.2, 0.3],
             #clim=[-.00001,.00001],
-            clim=[-.10,.10],
+            clim=[-.20,.20],
             point_size=10,
             render_points_as_spheres=True
         )
