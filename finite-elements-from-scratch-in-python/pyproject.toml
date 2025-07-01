@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finite-elements-wave-simulator"
+version = "0.1.0"
+description = "Discontinuous Galerkin finite element method for wave simulation from scratch in Python"
+readme = "README.org"
+license = {text = "MIT"}
+authors = [
+    {name = "Author", email = "author@example.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy>=1.20.0",
+    "scipy>=1.7.0", 
+    "matplotlib>=3.5.0",
+    "gmsh>=4.8.0",
+    "pyvista>=0.35.0",
+    "panel>=1.0.0",
+    "sympy>=1.9.0",
+    "tomli>=2.0.0; python_version<'3.11'",
+    "toml>=0.10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0",
+    "pytest-cov>=3.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "mypy>=0.950",
+]
+docs = [
+    "sphinx>=4.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+]
+
+[project.scripts]
+run-wave-simulation = "run_simulation:main"
+run-wave-gui = "run_gui:main"
+
+[project.urls]
+Homepage = "https://govango.org/blogs/discontinuous-galerkin-method-from-scratch-in-python-the-finite-element"
+Repository = "https://github.com/username/finite-elements-from-scratch-in-python"
+Documentation = "https://govango.org/blogs/discontinuous-galerkin-method-from-scratch-in-python-the-finite-element"
+
+[tool.setuptools.packages.find]
+include = ["wave_simulator*"]
+
+[tool.setuptools.package-data]
+wave_simulator = ["*.py"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

@@ -1,7 +1,11 @@
 import numpy as np
+from numba import njit, prange
 from wave_simulator.mesh import Mesh3d
 from wave_simulator.visualizer import Visualizer 
 from scipy.stats import mode
+from numba import njit, prange
+#import numba
+#import os
 
 class LinearAcoustics:
     def __init__(self,
@@ -12,31 +16,69 @@ class LinearAcoustics:
                  source_frequency=None,
                  ):
         self.mesh = mesh
-        #self.p = np.zeros((nodes_per_cell, num_cells)) # pressure field 
-        #self.u = np.zeros((nodes_per_cell, num_cells)) # x component of velocity field 
-        #self.v = np.zeros((nodes_per_cell, num_cells)) # y component of velocity field
-        #self.w = np.zeros((nodes_per_cell, num_cells)) # z component of velocity field
+        self.nodes_per_cell = self.mesh.reference_element.nodes_per_cell
+        self.nodes_per_face = self.mesh.reference_element.nodes_per_face
+        self.num_cells = self.mesh.num_cells
+        self.num_faces = self.mesh.reference_element.num_faces
+        self.p = np.zeros((self.nodes_per_cell, self.num_cells), order='F')
+        self.u = np.zeros((self.nodes_per_cell, self.num_cells), order='F')
+        self.v = np.zeros((self.nodes_per_cell, self.num_cells), order='F')
+        self.w = np.zeros((self.nodes_per_cell, self.num_cells), order='F')
         self.source_center = np.array(source_center)
         self.source_radius = source_radius
         self.source_frequency = source_frequency# Hz
         self.source_amplitude = source_amplitude
         self.source_duration = 1 / self.source_frequency
         self._locate_source_nodes()
-        # air density = 1.293 earthdata.nasa.gov/topics/atmosphere/air-mass-density
-        # air speed = 343
-        #self.surface_impedance = 1.293 * (343) 
         self.set_initial_conditions()
+        # Pre-cache material properties and constants for performance
+        self.flux_terms_cached = False
+        self._material_properties_cached = False
+        self._inv_rho = None
+        self._bulk = None
+        self._precompute_indices()
+        self._precompute_material_properties()
+        # precompute spatial derivative matrices
+        Dr = self.mesh.reference_element_operators.r_differentiation_matrix
+        Ds = self.mesh.reference_element_operators.s_differentiation_matrix
+        Dt = self.mesh.reference_element_operators.t_differentiation_matrix
+
+        self.Dx = np.empty((self.nodes_per_cell, self.nodes_per_cell, self.num_cells))
+        self.Dy = np.empty((self.nodes_per_cell, self.nodes_per_cell, self.num_cells))
+        self.Dz = np.empty((self.nodes_per_cell, self.nodes_per_cell, self.num_cells))
+
+        for k in range(self.num_cells):
+            self.Dx[:,:,k] = self.mesh.drdx[:,k] * Dr + self.mesh.dsdx[:,k] * Ds + self.mesh.dtdx[:,k] * Dt
+            self.Dy[:,:,k] = self.mesh.drdy[:,k] * Dr + self.mesh.dsdy[:,k] * Ds + self.mesh.dtdy[:,k] * Dt
+            self.Dz[:,:,k] = self.mesh.drdz[:,k] * Dr + self.mesh.dsdz[:,k] * Ds + self.mesh.dtdz[:,k] * Dt
+
+    def _precompute_material_properties(self):
+        # Material properties (constant)
+        if self._inv_rho is None:
+            self._inv_rho = 1.0 / self.mesh.density
+            self._bulk = self.mesh.density * (self.mesh.speed ** 2)
+
+        # Material properties on faces
+        ext = self.mesh.exterior_face_node_indices
+        intr = self.mesh.interior_face_node_indices
+        Npf = self.nodes_per_face
+        Nf = self.num_faces
+        K = self.num_cells
+        self.rho_p = self.mesh.density.ravel('F')[ext].reshape((Npf*Nf, K), order='F')
+        self.rho_m = self.mesh.density.ravel('F')[intr].reshape((Npf*Nf, K), order='F')
+        self.c_p = self.mesh.speed.ravel('F')[ext].reshape((Npf*Nf, K), order='F')
+        self.c_m = self.mesh.speed.ravel('F')[intr].reshape((Npf*Nf, K), order='F')
+    
+    def _precompute_indices(self):
+        # Current precomputation...
+        self.boundary_indices = self.mesh.boundary_face_node_indices
+        self.interior_indices = self.mesh.interior_face_node_indices
+        self.exterior_indices = self.mesh.exterior_face_node_indices
+        self.source_nodes_boundary = self.boundary_indices[self.source_nodes]
 
     def set_initial_conditions(self, kind="none"):
         """Set initial conditions for testing the wave propagation."""
         # initialize zero value velocity and pressure fields
-        num_cells = self.mesh.num_cells
-        nodes_per_cell = self.mesh.reference_element.nodes_per_cell
-        self.p = np.zeros((nodes_per_cell,  num_cells)) # pressure field 
-        self.u = np.zeros((nodes_per_cell,  num_cells)) # v_x field 
-        self.v = np.zeros((nodes_per_cell,  num_cells)) # v_y field 
-        self.w = np.zeros((nodes_per_cell,  num_cells)) # v_z field 
-
         # get vertex coordinates
         x = self.mesh.x
         y = self.mesh.y
@@ -54,25 +96,14 @@ class LinearAcoustics:
 
     def _reshape_to_rectangular(self, du, dv, dw, dp):
         # reshape jump matrices
-        Npf = self.mesh.reference_element.nodes_per_face
-        num_faces = self.mesh.reference_element.num_faces
-        K = self.mesh.num_cells
+        Npf = self.nodes_per_face
+        num_faces = self.num_faces
+        K = self.num_cells
         du = du.reshape((Npf*num_faces, K), order='F')
         dv = dv.reshape((Npf*num_faces, K), order='F')
         dw = dw.reshape((Npf*num_faces, K), order='F')
         dp = dp.reshape((Npf*num_faces, K), order='F')
         return du, dv, dw, dp
-
-    def _get_material_face_values(self):
-        # indices for interior and exterior values
-        exterior_values = self.mesh.exterior_face_node_indices
-        interior_values = self.mesh.interior_face_node_indices
-        # get interior values on cells
-        rho_p = self.mesh.density.ravel(order='F')[exterior_values]
-        c_p = self.mesh.speed.ravel(order='F')[exterior_values]
-        rho_m = self.mesh.density.ravel(order='F')[interior_values]
-        c_m = self.mesh.speed.ravel(order='F')[interior_values]
-        self.rho_p, self.rho_m, self.c_p, self.c_m = self._reshape_to_rectangular(rho_p, rho_m, c_p, c_m)
 
     # Pulse types
     def _compute_shifted_cosine(self, time):
@@ -166,53 +197,34 @@ class LinearAcoustics:
         return rho, c
 
 
-    def _apply_source_boundary_condition(self, time, p_p, u_p, v_p, w_p, p_m, u_m, v_m, w_m):
+    def _apply_source_boundary_condition(self, time, p_p):
         # get source amplitude
         source_pressure = self._get_source_pressure(time)
 
         # get source node indices 
-        boundary = self.mesh.boundary_face_node_indices
-        source_nodes = boundary[self.source_nodes]
-
-        # get material property at the source
-        #rho, c = self._get_source_material_properties(source_nodes)
-
-        # get source node normal 
-        #nx = self.mesh.nx.ravel(order='F')[source_nodes]
-        #ny = self.mesh.ny.ravel(order='F')[source_nodes]
-        #nz = self.mesh.nz.ravel(order='F')[source_nodes]
+        source_nodes = self.source_nodes_boundary  # Precomputed
 
         # Overwrite pressure at the source nodes with the shifted cosine pressure
         # model where the transducer meets the domain as an open boundary
         p_p[source_nodes] = source_pressure
-        #u_p[source_nodes] = u_m[source_nodes]
-        #v_p[source_nodes] = v_m[source_nodes]
-        #w_p[source_nodes] = w_m[source_nodes]
 
-        return p_p, u_p, v_p, w_p
+        return p_p
  
-
     def _apply_boundary_conditions(self, time):
-        # indices for interior and exterior values
-        interior_values = self.mesh.interior_face_node_indices
-        exterior_values = self.mesh.exterior_face_node_indices
-
-        # indices for face values
-        boundary = self.mesh.boundary_face_node_indices
-
         # get interior values on cells
-        u_m = self.u.ravel(order='F')[interior_values]
-        v_m = self.v.ravel(order='F')[interior_values]
-        w_m = self.w.ravel(order='F')[interior_values]
-        p_m = self.p.ravel(order='F')[interior_values]
+        u_m = self.u.ravel('F')[self.interior_indices]
+        v_m = self.v.ravel('F')[self.interior_indices]
+        w_m = self.w.ravel('F')[self.interior_indices]
+        p_m = self.p.ravel('F')[self.interior_indices]
+        
+        u_p = self.u.ravel('F')[self.exterior_indices]
+        v_p = self.v.ravel('F')[self.exterior_indices]
+        w_p = self.w.ravel('F')[self.exterior_indices]
+        p_p = self.p.ravel('F')[self.exterior_indices]
+        
+        # Use precomputed boundary indices
+        boundary = self.boundary_indices
 
-        # get exterior values (just outside of each cell)
-        u_p = self.u.ravel(order='F')[exterior_values]
-        v_p = self.v.ravel(order='F')[exterior_values]
-        w_p = self.w.ravel(order='F')[exterior_values]
-        p_p = self.p.ravel(order='F')[exterior_values]
-
-        #  ravel normal vectors for indexing
         nx = self.mesh.nx.ravel(order='F')
         ny = self.mesh.ny.ravel(order='F')
         nz = self.mesh.nz.ravel(order='F')
@@ -224,10 +236,10 @@ class LinearAcoustics:
         u_p[boundary] = u_m[boundary]# - 2.0 * (ndotum) * nx[boundary]
         v_p[boundary] = v_m[boundary]# - 2.0 * (ndotum) * ny[boundary]
         w_p[boundary] = w_m[boundary]# - 2.0 * (ndotum) * nz[boundary]
-        p_p[boundary] = 0#p_m[boundary]
+        p_p[boundary] = 0 
 
         # apply source
-        p_p, u_p, v_p, w_p = self._apply_source_boundary_condition(time, p_p, u_p, v_p, w_p, p_m, u_m, v_m, w_m)
+        p_p = self._apply_source_boundary_condition(time, p_p)
 
         # reshape for matrix-matrix multiplication
         self.u_m, self.v_m, self.w_m, self.p_m = self._reshape_to_rectangular(u_m, v_m, w_m, p_m)
@@ -257,11 +269,16 @@ class LinearAcoustics:
         normal_vel_jump = self.ndotup - self.ndotum
         pressure_jump = self.p_p - self.p_m
     
-        denom = self.c_m * self.rho_m + self.c_p * self.rho_p
-        num = -self.c_p * self.rho_p * normal_vel_jump + pressure_jump
-        common_term = num / denom
+        if self.flux_terms_cached == False:
+            self.flux_denominator = self.c_m * self.rho_m + self.c_p * self.rho_p
+            self.Z_p = self.c_p * self.rho_p
+            self.K_m = self.c_m**2 * self.rho_m
+            self.flux_terms_cached = True
+
+        num = -self.Z_p * normal_vel_jump + pressure_jump
+        common_term = num / self.flux_denominator 
     
-        self.flux_p = -self.c_m**2 * self.rho_m * common_term
+        self.flux_p = -self.K_m * common_term
         self.flux_u = nx * self.c_m * common_term
         self.flux_v = ny * self.c_m * common_term
         self.flux_w = nz * self.c_m * common_term
@@ -297,31 +314,39 @@ class LinearAcoustics:
             p = self.p
 
         # get heterogeneous material matrices
-        self._get_material_face_values()
+        #self._get_material_face_values()
 
         # spatial derivative matrices
-        Dr = self.mesh.reference_element_operators.r_differentiation_matrix
-        Ds = self.mesh.reference_element_operators.s_differentiation_matrix
-        Dt = self.mesh.reference_element_operators.t_differentiation_matrix
+        #Dr = self.mesh.reference_element_operators.r_differentiation_matrix
+        #Ds = self.mesh.reference_element_operators.s_differentiation_matrix
+        #Dt = self.mesh.reference_element_operators.t_differentiation_matrix
 
         # local spatial derivatives on reference tetrahedron
-        drdx = self.mesh.drdx
-        drdy = self.mesh.drdy
-        drdz = self.mesh.drdz
-        dsdx = self.mesh.dsdx
-        dsdy = self.mesh.dsdy
-        dsdz = self.mesh.dsdz
-        dtdx = self.mesh.dtdx
-        dtdy = self.mesh.dtdy
-        dtdz = self.mesh.dtdz
+        #drdx = self.mesh.drdx
+        #drdy = self.mesh.drdy
+        #drdz = self.mesh.drdz
+        #dsdx = self.mesh.dsdx
+        #dsdy = self.mesh.dsdy
+        #dsdz = self.mesh.dsdz
+        #dtdx = self.mesh.dtdx
+        #dtdy = self.mesh.dtdy
+        #dtdz = self.mesh.dtdz
 
-        # compute derivatives in physical space
-        dudx = drdx * (Dr @ self.u) + dsdx * (Ds @ self.u) + dtdx * (Dt @ self.u)
-        dvdy = drdy * (Dr @ self.v) + dsdy * (Ds @ self.v) + dtdy * (Dt @ self.v)
-        dwdz = drdz * (Dr @ self.w) + dsdz * (Ds @ self.w) + dtdz * (Dt @ self.w)
-        dpdx = drdx * (Dr @ self.p) + dsdx * (Ds @ self.p) + dtdx * (Dt @ self.p)
-        dpdy = drdy * (Dr @ self.p) + dsdy * (Ds @ self.p) + dtdy * (Dt @ self.p)
-        dpdz = drdz * (Dr @ self.p) + dsdz * (Ds @ self.p) + dtdz * (Dt @ self.p)
+        ## compute derivatives in physical space
+        #dudx = drdx * (Dr @ self.u) + dsdx * (Ds @ self.u) + dtdx * (Dt @ self.u)
+        #dvdy = drdy * (Dr @ self.v) + dsdy * (Ds @ self.v) + dtdy * (Dt @ self.v)
+        #dwdz = drdz * (Dr @ self.w) + dsdz * (Ds @ self.w) + dtdz * (Dt @ self.w)
+        #dpdx = drdx * (Dr @ self.p) + dsdx * (Ds @ self.p) + dtdx * (Dt @ self.p)
+        #dpdy = drdy * (Dr @ self.p) + dsdy * (Ds @ self.p) + dtdy * (Dt @ self.p)
+        #dpdz = drdz * (Dr @ self.p) + dsdz * (Ds @ self.p) + dtdz * (Dt @ self.p)
+
+        # Replace derivative calculations with:
+        dudx = np.einsum('ijk,jk->ik', self.Dx, u)
+        dvdy = np.einsum('ijk,jk->ik', self.Dy, v)
+        dwdz = np.einsum('ijk,jk->ik', self.Dz, w)
+        dpdx = np.einsum('ijk,jk->ik', self.Dx, p)
+        dpdy = np.einsum('ijk,jk->ik', self.Dy, p)
+        dpdz = np.einsum('ijk,jk->ik', self.Dz, p)
 
         # apply boundary conditions
         self._apply_boundary_conditions(time)
@@ -331,21 +356,20 @@ class LinearAcoustics:
         self.ndotup = self.mesh.nx * self.u_p + self.mesh.ny * self.v_p + self.mesh.nz * self.w_p
 
         # compute flux
-        #self._compute_upwind_flux()
         self._compute_rh_flux()
-        #self._compute_xijun_he_flux()
 
         ## get necessary matricies for integral computation
         face_scale = self.mesh.surface_to_volume_jacobian
         lift = self.mesh.reference_element_operators.lift_matrix
 
-        ## inverse density and bulk modulus (rho c^2)
-        inv_rho = 1.0 / self.mesh.density
-        bulk = self.mesh.density * (self.mesh.speed ** 2)
+        ## inverse density and bulk modulus (rho c^2) - cached for performance
+        if self._inv_rho is None:
+            self._inv_rho = 1.0 / self.mesh.density
+            self._bulk = self.mesh.density * (self.mesh.speed ** 2)
 
-        self.rhs_p = -bulk * (dudx + dvdy + dwdz) - lift @ (face_scale * self.flux_p)
-        self.rhs_u = -inv_rho * dpdx - lift @ (face_scale * self.flux_u)
-        self.rhs_v = -inv_rho * dpdy - lift @ (face_scale * self.flux_v)
-        self.rhs_w = -inv_rho * dpdz - lift @ (face_scale * self.flux_w)
+        self.rhs_p = -self._bulk * (dudx + dvdy + dwdz) - lift @ (face_scale * self.flux_p)
+        self.rhs_u = -self._inv_rho * dpdx - lift @ (face_scale * self.flux_u)
+        self.rhs_v = -self._inv_rho * dpdy - lift @ (face_scale * self.flux_v)
+        self.rhs_w = -self._inv_rho * dpdz - lift @ (face_scale * self.flux_w)
 
         return self.rhs_u, self.rhs_v, self.rhs_w, self.rhs_p

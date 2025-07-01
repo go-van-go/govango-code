@@ -156,7 +156,7 @@ class UserInterface:
 
             layout = pn.Row(
                 pn.Column(
-                    pn.pane.HTML("<b>Tracked Points</b>"),
+                    pn.pane.HTML("<b>Receivers</b>"),
                     pn.pane.Matplotlib(tracked_fig, tight=True, height=900),
                 ),
                 pn.Column(

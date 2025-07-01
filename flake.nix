@@ -26,6 +26,7 @@
 		python-pkgs.ipympl
                 python-pkgs.matplotlib
 		python-pkgs.numpy
+		python-pkgs.numba
 		python-pkgs.panel
 		python-pkgs.pytest
 		python-pkgs.pyvista

@@ -1,6 +1,7 @@
 import sys
 import math
 import pickle
+import time
 import numpy as np
 from wave_simulator.mesh import Mesh3d
 from wave_simulator.physics import LinearAcoustics
@@ -82,6 +83,7 @@ class Simulator:
             }
 
     def run(self):
+        start_time = time.time()
         while self.time_stepper.t < self.t_final:
             t_step = self.time_stepper.current_time_step
 
@@ -97,7 +99,7 @@ class Simulator:
 
             #self.time_stepper.advance_time_step_rk_with_force_term()
             self.time_stepper.advance_time_step()
-            self._log_info()
+            self._log_info(start_time)
 
     def _get_source_data(self):
         num_time_steps = self.time_stepper.num_time_steps
@@ -231,6 +233,7 @@ class Simulator:
 
         self.energy_index += 1       
 
-    def _log_info(self):
-        sys.stdout.write(f"\rTimestep: {self.time_stepper.current_time_step}, Time: {self.time_stepper.t:.6f}")
+    def _log_info(self, start_time):
+        runtime = time.time() - start_time
+        sys.stdout.write(f"\rTimestep: {self.time_stepper.current_time_step}, Time: {self.time_stepper.t:.6f}, Runtime: {runtime:.2f}s")
         sys.stdout.flush()
