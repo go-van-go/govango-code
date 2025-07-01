@@ -1,6 +1,6 @@
 import numpy as np
 import pyvista as pv
-
+import panel as pn
 import matplotlib.pyplot as plt
 import gmsh
 import math
@@ -112,7 +112,7 @@ class Visualizer:
             opacity=[0.9, 0.7, 0.5, 0.5, 0, 0.5, 0.5, 0.7, 0.9],
             #opacity=[0.01, 0.05, 0.06,  0.08, 0.09, 0.2, 0.3],
             #clim=[-.00001,.00001],
-            clim=[-.02,.02],
+            clim=[-.10,.10],
             point_size=10,
             render_points_as_spheres=True
         )
@@ -493,7 +493,7 @@ class Visualizer:
             # Restore original plotter
             self.plotter = old_plotter
 
-    def plot_energy(self) :
+    def plot_energy(self, show=False):
         #num_steps = len(self.energy_data)
         interval = self.save_energy_interval
         t = self.current_time_step
@@ -509,9 +509,12 @@ class Visualizer:
         ax.set_ylabel('Energy')
         ax.set_xlabel('Time')
         ax.grid(True, alpha=0.3)
-        plt.show()
+        if show:
+            plt.show()
+            return
+        return fig
 
-    def plot_tracked_points(self):
+    def plot_tracked_points(self, show=False):
         """
         Plot each field (pressure or velocity component) at each tracked point on a separate subplot,
         but only include data up to current_time_step // save_points_interval.
@@ -573,7 +576,21 @@ class Visualizer:
     
         axes[-1].set_xlabel("Time (s)")
         plt.tight_layout()
-        plt.show()
+
+        if show:
+            plt.show()
+            return
+
+        return fig
+
+    def get_pyvista_pane(self):
+        plotter = pv.Plotter(off_screen=True)
+        self.plotter = plotter
+        self.set_camera()
+        self._show_grid()
+        self.add_inclusion_boundary()
+        self.add_nodes_3d("p")
+        return pn.pane.VTK(self.plotter.ren_win)
 
     def plot_source(self, source_data):
         num_steps = len(source_data)

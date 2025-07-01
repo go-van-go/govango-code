@@ -23,8 +23,10 @@
                 python-pkgs.python-lsp-server
               # packages for code
                 python-pkgs.gmsh
+		python-pkgs.ipympl
                 python-pkgs.matplotlib
 		python-pkgs.numpy
+		python-pkgs.panel
 		python-pkgs.pytest
 		python-pkgs.pyvista
 		python-pkgs.scipy
