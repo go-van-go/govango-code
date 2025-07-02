@@ -18,7 +18,7 @@ class MaterialConfig:
 
 @dataclass
 class MeshConfig:
-    cell_size: float = 0.008
+    grid_size: float = 0.008
     box_size: float = 0.25
     inclusion_radius: float = 0.05
 

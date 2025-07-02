@@ -27,30 +27,26 @@ class Mesh3d:
         self.reference_element_operators = ReferenceElementOperators(self.reference_element)
         self.dim = self.reference_element.d
         self.n = self.reference_element.n  # polynomial order
-        #gmsh.initialize()
+        self.grid_size = grid_size
+        self.box_size = box_size
+        self.inclusion_density = inclusion_density
+        self.inclusion_speed = inclusion_speed
+        self.outer_density = outer_density
+        self.outer_speed = outer_speed
+        self.source_center = source_center
+        self.source_radius = source_radius
+        self.source_amplitude = source_amplitude
+        self.source_frequency = source_amplitude
+        self.inclusion_radius = inclusion_radius
+        self.msh_file = msh_file
 
-        if msh_file is not None:
+        if msh_file is not None and msh_file.exists():
             self.msh_file = msh_file
             self.initialize_gmsh()
         elif None not in (grid_size, box_size, inclusion_density, inclusion_speed,
                           outer_density, outer_speed, source_center,
-                          source_radius, source_amplitude, source_frequency, inclusion_radius):
-            self.grid_size = grid_size
-            self.box_size = box_size
-            self.inclusion_density = inclusion_density
-            self.inclusion_speed = inclusion_speed
-            self.outer_density = outer_density
-            self.outer_speed = outer_speed
-            self.source_center = source_center
-            self.source_radius = source_radius
-            self.source_amplitude = source_amplitude
-            self.source_frequency = source_amplitude
-            self.inclusion_radius = inclusion_radius
-            self.msh_file = self._get_mesh_file_path()
-            if self.msh_file.exists():
-                self.initialize_gmsh()
-            else:
-                self._generate_geometry()
+                          source_radius, source_amplitude, source_frequency, inclusion_radius, msh_file):
+            self._generate_geometry()
         else:
             raise ValueError("Invalid Mesh3d initialization: must provide either msh_file or all geometric parameters.")
 
@@ -176,26 +172,26 @@ class Mesh3d:
 
         logger.info(f"... Mesh generated: {self.msh_file} ...")
 
-    def _geometry_hash(self):
-        """
-        Create a short hash from mesh-related parameters.
-        """
-        params = {
-            "grid_size": self.grid_size,
-            "box_size": self.box_size,
-            "source_center": self.source_center,
-            "source_radius": self.source_radius,
-            "inclusion_radius": self.inclusion_radius,
-        }
-        encoded = json.dumps(params, sort_keys=True).encode()
-        return hashlib.sha1(encoded).hexdigest()[:10]
+   # def _geometry_hash(self):
+   #     """
+   #     Create a short hash from mesh-related parameters.
+   #     """
+   #     params = {
+   #         "grid_size": self.grid_size,
+   #         "box_size": self.box_size,
+   #         "source_center": self.source_center,
+   #         "source_radius": self.source_radius,
+   #         "inclusion_radius": self.inclusion_radius,
+   #     }
+   #     encoded = json.dumps(params, sort_keys=True).encode()
+   #     return hashlib.sha1(encoded).hexdigest()[:10]
     
-    def _get_mesh_file_path(self):
-        """
-        Returns the full path of the mesh file in inputs/meshes/
-        """
-        hash = self._geometry_hash()
-        return Path("inputs/meshes") / f"{hash}.msh"
+   # def _get_mesh_file_path(self):
+   #     """
+   #     Returns the full path of the mesh file in inputs/meshes/
+   #     """
+   #     hash = self._geometry_hash()
+   #     return Path("inputs/meshes") / f"{hash}.msh"
 
     def _extract_mesh_info(self):
         """ Get information from Gmsh file """

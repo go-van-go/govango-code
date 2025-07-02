@@ -6,7 +6,9 @@ import panel as pn
 import matplotlib.pyplot as plt
 import pyvista as pv
 
+from pathlib import Path
 from wave_simulator.visualizer import Visualizer
+
 pn.extension('vtk')
 
 class UserInterface:
@@ -32,6 +34,7 @@ class UserInterface:
         self.refresh_button.on_click(self._load_frame)
 
         self.parameters_pane = pn.pane.HTML("<i>No parameters loaded.</i>", width=300)
+        self.runtime_pane = pn.pane.HTML("", width=300)
 
         self.show_3d_button = pn.widgets.Button(name='Show 3D', button_type='success')
         self.show_3d_button.on_click(self._show_3d)
@@ -46,7 +49,9 @@ class UserInterface:
                 self.show_3d_button,
                 self.status_text,
                 pn.pane.HTML("<h3>Simulation Parameters</h3>"),
-                self.parameters_pane  # 👈 clean HTML, no markdown-it
+                self.parameters_pane,
+                pn.pane.HTML("<h3>Runtime</h3>"),
+                self.runtime_pane,
             ),
             pn.Column(
                 self.content
@@ -103,6 +108,7 @@ class UserInterface:
             self.parameters_pane.object = "<i>⚠️ No parameters.toml found.</i>"
 
 
+
     def _format_parameters(self, file_path):
         try:
             parameters = toml.load(file_path)
@@ -124,6 +130,7 @@ class UserInterface:
             return
         try:
             self.visualizer.add_nodes_3d("p")
+            self.visualizer.add_inclusion_boundary()
             self.visualizer.show()
             self.status_text.object = "<span style='color:green'>✅ 3D view launched.</span>"
         except Exception as e:
@@ -133,27 +140,53 @@ class UserInterface:
         if not self.data_files:
             self.status_text.object = "<span style='color:red'>⚠️ No data loaded.</span>"
             return
-
+    
         try:
-            file_path = self.timestep_map[self.frame_selector.value]
-
-            with open(file_path, 'rb') as f:
+            data_path = self.timestep_map[self.frame_selector.value]
+    
+            # Load timestep-specific data
+            with open(data_path, 'rb') as f:
                 data = pickle.load(f)
-
-            self.visualizer = Visualizer(data)
+    
+            # Load mesh data
+            mesh_data = data['mesh_directory'] / "mesh.pkl"
+            if mesh_data.exists():
+                with open(mesh_data, 'rb') as mf:
+                    mesh_data = pickle.load(mf)
+            else:
+                self.status_text.object = "<span style='color:red'>❌ mesh.pkl not found.</span>"
+                return
+    
+            self.visualizer = Visualizer(mesh_data, data)
             tracked_fig = self.visualizer.plot_tracked_points()
             energy_fig = self.visualizer.plot_energy()
+            # Try to load runtime from the first available data file
+            # Append runtime info to parameters pane
+            runtime_sec = data.get("runtime", None)
+            if runtime_sec is not None:
+                hours = int(runtime_sec // 3600)
+                minutes = int((runtime_sec % 3600) // 60)
+                seconds = int(runtime_sec % 60)
+                runtime_str = f"{hours:02}:{minutes:02}:{seconds:02}"
+                self.runtime_pane.object = f"""
+                <div style='font-family: monospace; font-size: 12px;'>
+                <b>Elapsed Time</b>: {runtime_str} (hh:mm:ss)
+                </div>
+                """
+            else:
+                self.runtime_pane.object = "<i>⚠️ Runtime not recorded.</i>"
+
 
             # Get image corresponding to current timestep
-            time_step = int(os.path.basename(file_path).split("_t")[-1].split(".")[0])
+            time_step = int(os.path.basename(data_path).split("_t")[-1].split(".")[0])
             image_path = os.path.join(self.selected_folder, "images", f"t_{time_step:08d}.png")
-
+    
             image_pane = (
                 pn.pane.PNG(image_path, width=550)
                 if os.path.exists(image_path)
                 else pn.pane.Markdown("**⚠️ No image found for this timestep.**")
             )
-
+    
             layout = pn.Row(
                 pn.Column(
                     pn.pane.HTML("<b>Receivers</b>"),
@@ -166,9 +199,9 @@ class UserInterface:
                     image_pane,
                 )
             )
-
+    
             self.content.objects = [layout]
-            self.status_text.object = f"<span style='color:green'>✅ Loaded frame: {os.path.basename(file_path)}</span>"
+            self.status_text.object = f"<span style='color:green'>✅ Loaded frame: {os.path.basename(data_path)}</span>"
         except Exception as e:
             self.status_text.object = f"<span style='color:red'>❌ Error loading frame: {e}</span>"
 

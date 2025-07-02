@@ -20,11 +20,13 @@ class Simulator:
                  pressure_reciever_locations,
                  u_velocity_reciever_locations,
                  v_velocity_reciever_locations,
-                 w_velocity_reciever_locations):
+                 w_velocity_reciever_locations,
+                 mesh_directory):
         self.output_path = output_path
         self.time_stepper = time_stepper
         self.physics = self.time_stepper.physics
         self.mesh = self.physics.mesh
+        self.mesh_directory = mesh_directory
         self.spatial_evaluator = SpatialEvaluator(self.mesh)
         self.t_final = self.time_stepper.t_final
 
@@ -32,6 +34,7 @@ class Simulator:
         self.save_data_interval = save_data_interval
         self.save_points_interval = save_points_interval
         self.save_energy_interval = save_energy_interval
+        self.start_time = 0 
 
         self.track_points(
             pressure_reciever_locations,
@@ -42,9 +45,10 @@ class Simulator:
 
         self.energy_index = 0
         self._get_source_data()
-
-        self.data = self._get_data()
-        self.visualizer = Visualizer(self.data)
+        data = self._get_data()
+        self.mesh_data = self._get_mesh_data()
+        #self._save_mesh_data(self.mesh_data)
+        self.visualizer = Visualizer(self.mesh_data, data)
         self.initialize_energy_array()
 
     def initialize_energy_array(self):
@@ -83,7 +87,7 @@ class Simulator:
             }
 
     def run(self):
-        start_time = time.time()
+        self.start_time = time.time()
         while self.time_stepper.t < self.t_final:
             t_step = self.time_stepper.current_time_step
 
@@ -99,7 +103,7 @@ class Simulator:
 
             #self.time_stepper.advance_time_step_rk_with_force_term()
             self.time_stepper.advance_time_step()
-            self._log_info(start_time)
+            self._log_info()
 
     def _get_source_data(self):
         num_time_steps = self.time_stepper.num_time_steps
@@ -108,15 +112,7 @@ class Simulator:
             t = time*self.time_stepper.dt
             self.source_data[time] = self.physics._get_source_pressure(t)
 
-#    def _save_data(self):
-#        visualizer = self.visualizer  # backup
-#        self.visualizer = None        # remove for pickling
-#        file_name=f't_{self.time_stepper.current_time_step:0>8}'
-#        with open(f'{self.output_path}/data/{file_name}.pkl', 'wb') as f:
-#            pickle.dump(self, f)
-#        self.visualizer = visualizer  # restore after saving
-
-    def _get_data(self):
+    def _get_mesh_data(self):
         # Create minimal mesh data for visualization
         mesh_data = {
             'x': self.mesh.x,
@@ -132,7 +128,14 @@ class Simulator:
             'speed_per_cell': self.mesh.speed[0,:],  # First row only
             'density_per_cell': self.mesh.density[0,:]  # First row only
         }
+        return mesh_data
 
+   # def _save_mesh_data(self, mesh_data):
+   #     mesh_path = f'{self.output_path}/mesh_data.pkl'
+   #     with open(mesh_path, 'wb') as mf:
+   #         pickle.dump(mesh_data, mf, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def _get_data(self):
         # Include simulator tracking data if available
         simulator_data = {}
         if hasattr(self, 'tracked_fields') and self.tracked_fields:
@@ -157,35 +160,38 @@ class Simulator:
                 'v': self.physics.v,
                 'w': self.physics.w
             },
-            'mesh': mesh_data,
             'simulator': simulator_data,
             'output_path': self.output_path,
             'save_image_interval' : self.save_image_interval,
             'save_data_interval' : self.save_data_interval,
             'save_points_interval': self.save_points_interval,
             'save_energy_interval': self.save_energy_interval,
+            'mesh_directory': self.mesh_directory,
+            'runtime': time.time() - self.start_time
         }
         return data
         
     def _save_data(self):
+        # initialize the save index for file naming
         if not hasattr(self, '_save_index'):
-            self._save_index = 0  # initialize the save index
+            self._save_index = 0  
     
-        self.data = self._get_data()
+        data = self._get_data()
         timestep_str = f'{self.time_stepper.current_time_step:0>8}'
         save_index_str = f'{self._save_index:0>8}'
-    
         file_name = f'{save_index_str}_t{timestep_str}.pkl'
         file_path = f'{self.output_path}/data/{file_name}'
-    
+
+        # save to file
         with open(file_path, 'wb') as f:
-            pickle.dump(self.data, f, protocol=pickle.HIGHEST_PROTOCOL)
-    
-        self._save_index += 1  # increment the save index after saving
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # increment the save index after saving
+        self._save_index += 1
 
     def _save_image(self):
-        self.data = self._get_data()
-        self.visualizer.set_data(self.data)
+        data = self._get_data()
+        self.visualizer.set_data(self.mesh_data, data)
         self.visualizer.save()
 
     def _save_tracked_points(self):
@@ -233,7 +239,7 @@ class Simulator:
 
         self.energy_index += 1       
 
-    def _log_info(self, start_time):
-        runtime = time.time() - start_time
+    def _log_info(self):
+        runtime = time.time() - self.start_time
         sys.stdout.write(f"\rTimestep: {self.time_stepper.current_time_step}, Time: {self.time_stepper.t:.6f}, Runtime: {runtime:.2f}s")
         sys.stdout.flush()

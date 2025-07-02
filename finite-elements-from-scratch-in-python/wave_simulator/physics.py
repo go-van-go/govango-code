@@ -1,11 +1,6 @@
 import numpy as np
-from numba import njit, prange
 from wave_simulator.mesh import Mesh3d
 from wave_simulator.visualizer import Visualizer 
-from scipy.stats import mode
-from numba import njit, prange
-#import numba
-#import os
 
 class LinearAcoustics:
     def __init__(self,

@@ -48,20 +48,29 @@ class LowStorageRungeKutta:
         #self.source_duration = 0.01
         self._log_info()
 
-    def _compute_time_step_size_hesthaven(self):
-        n = self.physics.mesh.reference_element.n
-        #surface_to_volume_jacobian = self.physics.mesh.surface_to_volume_jacobian
-        #c = self.physics.max_speed
+#    def _compute_time_step_size_hesthaven(self):
+#        n = self.physics.mesh.reference_element.n
+#        #surface_to_volume_jacobian = self.physics.mesh.surface_to_volume_jacobian
+#        #c = self.physics.max_speed
+#
+#        c = np.max(self.physics.mesh.speed) # used in time_stepper.py
+#        d = self.physics.mesh.smallest_diameter
+#        cfl_factor = 0.9
+#        #dt = 1.0 * (1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n * c))
+#        dt = cfl_factor * (d / (n * n * c))
+#        #dt = cfl_factor * (d / (10 * c))
+#        # correct dt for integer # of time steps
+#        self.num_time_steps = int(np.ceil(self.t_final/ dt))
+#        self.dt = (self.t_final / self.num_time_steps)
 
-        c = np.max(self.physics.mesh.speed) # used in time_stepper.py
+    def _compute_time_step_size_hesthaven(self):
+        p = self.physics.mesh.reference_element.n
+        c = np.max(self.physics.mesh.speed)
         d = self.physics.mesh.smallest_diameter
-        cfl_factor = 0.9
-        #dt = 1.0 * (1.0 / (np.max(np.max(surface_to_volume_jacobian)) * n * n * c))
-        dt = cfl_factor * (d / (n * n * c))
-        #dt = cfl_factor * (d / (10 * c))
-        # correct dt for integer # of time steps
-        self.num_time_steps = int(np.ceil(self.t_final/ dt))
-        self.dt = (self.t_final / self.num_time_steps)
+        cfl_safety = 0.95  # Slightly under max for safety
+        dt = cfl_safety * (d / ((2 * p + 1) * c))
+        self.num_time_steps = int(np.ceil(self.t_final / dt))
+        self.dt = self.t_final / self.num_time_steps
 
     def _compute_time_step_size_xijun(self):
         """

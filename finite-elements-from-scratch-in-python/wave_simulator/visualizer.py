@@ -8,12 +8,12 @@ from wave_simulator.reference_element_operators import ReferenceElementOperators
 from wave_simulator.finite_elements import LagrangeElement
 
 class Visualizer:
-    def __init__(self, data, grid=True):
+    def __init__(self, mesh_data, data, grid=True):
         # create plotter
         self.plotter = pv.Plotter(off_screen=False)
 
         # set visualizer data
-        self.set_data(data)
+        self.set_data(mesh_data, data)
 
         # initialize gmsh if needed
         if not gmsh.isInitialized():
@@ -29,13 +29,13 @@ class Visualizer:
         # set camera
         self.set_camera()
 
-    def set_data(self, data):
+    def set_data(self, mesh_data, data):
         self.data = data
+        self.mesh = mesh_data
         self.extract_data(data)
         self.plotter.clear()
 
     def extract_data(self, data):
-        self.mesh = data["mesh"]
         self.x = self.mesh["x"]
         self.y = self.mesh["y"]
         self.z = self.mesh["z"]
@@ -112,7 +112,7 @@ class Visualizer:
             opacity=[0.9, 0.7, 0.5, 0.5, 0, 0.5, 0.5, 0.7, 0.9],
             #opacity=[0.01, 0.05, 0.06,  0.08, 0.09, 0.2, 0.3],
             #clim=[-.00001,.00001],
-            clim=[-.20,.20],
+            clim=[-.10,.10],
             point_size=10,
             render_points_as_spheres=True
         )
