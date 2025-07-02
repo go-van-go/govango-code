@@ -6,6 +6,7 @@ import hashlib
 import sys
 from pathlib import Path
 from wave_simulator.simulator import Simulator
+from wave_simulator.sensor_placer import SensorPlacer
 from wave_simulator.finite_elements import LagrangeElement
 from wave_simulator.mesh import Mesh3d
 from wave_simulator.physics import LinearAcoustics
@@ -163,13 +164,20 @@ class SimulationSetup:
             t_final=cfg.solver.total_time,
         )
 
+        sensor_placer = SensorPlacer(box_size=cfg.mesh.box_size,
+                                     top_sensors=cfg.receivers.top_sensors,
+                                     side_sensors=cfg.receivers.side_sensors,
+                                     additional_sensors=cfg.receivers.pressure)
+
+        sensor_coordinates = sensor_placer.get_sensor_coordinates()
+
         sim = Simulator(time_stepper,
                         output_path=self.output_path,
                         save_image_interval=cfg.output_intervals.image,
                         save_points_interval=cfg.output_intervals.points,
                         save_data_interval=cfg.output_intervals.data,
                         save_energy_interval=cfg.output_intervals.energy,
-                        pressure_reciever_locations=cfg.receivers.pressure,
+                        pressure_reciever_locations=sensor_coordinates,
                         u_velocity_reciever_locations=cfg.receivers.x_velocity,
                         v_velocity_reciever_locations=cfg.receivers.y_velocity,
                         w_velocity_reciever_locations=cfg.receivers.z_velocity,

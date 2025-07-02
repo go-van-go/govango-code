@@ -38,6 +38,8 @@ class ReceiversConfig:
     x_velocity: List[List[float]] = field(default_factory=list)
     y_velocity: List[List[float]] = field(default_factory=list)
     z_velocity: List[List[float]] = field(default_factory=list)
+    top_sensors: int = 15
+    side_sensors: int = 10
 
 
 @dataclass

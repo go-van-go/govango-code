@@ -58,6 +58,7 @@ class Visualizer:
         self.save_data_interval  = data["save_data_interval"]
         self.save_points_interval = data["save_points_interval"]
         self.save_energy_interval = data["save_energy_interval"]
+        self.sensor_coordinates = data["sensor_coordinates"]
 
         self.get_domain_parameters()
 
@@ -211,6 +212,22 @@ class Visualizer:
                 opacity=0.5
             )
 
+    def add_sensors(self):
+        """Add red dots at all pressure receiver locations."""
+        if not hasattr(self, 'sensor_coordinates') or not self.sensor_coordinates:
+            print("No pressure receiver locations to display.")
+            return
+
+        # Convert list of coordinates to numpy array
+        sensor_points = np.array(self.sensor_coordinates)
+
+        # Add the points to the plot as red spheres
+        self.plotter.add_points(
+            sensor_points,
+            color="red",
+            point_size=24,
+            render_points_as_spheres=True
+        )
 
     def add_cell_normals(self, cell_list):
         face_node_indices = self.mesh.reference_element.face_node_indices

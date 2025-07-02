@@ -11,7 +11,7 @@ outer_density = 1.0
 outer_wave_speed = 1.0
 
 [mesh]
-grid_size = 0.008
+grid_size = 0.01
 box_size = 0.25
 inclusion_radius = 0.05
 
@@ -20,11 +20,8 @@ total_time = 0.4
 polynomial_order = 2
 
 [receivers]
-pressure   = [[0.125, 0.125, 0.0],
-	      [0.125, 0.125, 0.0375]]
-x_velocity = [[0.125, 0.125, 0.0]]
-y_velocity = [[0.125, 0.125, 0.0]]
-z_velocity = [[0.125, 0.125, 0.0]]
+top_sensors = 15
+side_sensors = 10
 
 [output_intervals]
 image = 10

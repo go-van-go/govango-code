@@ -123,6 +123,7 @@ class UserInterface:
         try:
             self.visualizer.add_nodes_3d("p")
             self.visualizer.add_inclusion_boundary()
+            self.visualizer.add_sensors()
             self.visualizer.show()
             self.status_text.object = "<span style='color:green'>✅ 3D view launched.</span>"
         except Exception as e:
@@ -176,8 +177,8 @@ class UserInterface:
 
             layout = pn.Row(
                 pn.Column(
-                    pn.pane.HTML("<b>Receivers</b>"),
-                    pn.pane.Matplotlib(tracked_fig, tight=True, height=900),
+                    pn.pane.HTML("<b>Sensors</b>"),
+                    pn.pane.Matplotlib(tracked_fig, tight=True, height=900, width=500),
                 ),
                 pn.Column(
                     pn.pane.HTML("<b>Energy Plot</b>"),

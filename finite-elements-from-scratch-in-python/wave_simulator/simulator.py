@@ -35,6 +35,7 @@ class Simulator:
         self.save_energy_interval = save_energy_interval
         self.start_time = 0
 
+        self.pressure_reciever_locations = pressure_reciever_locations
         self.track_points(
             pressure_reciever_locations,
             u_velocity_reciever_locations,
@@ -155,7 +156,8 @@ class Simulator:
             'save_points_interval': self.save_points_interval,
             'save_energy_interval': self.save_energy_interval,
             'mesh_directory': self.mesh_directory,
-            'runtime': time.time() - self.start_time
+            'runtime': time.time() - self.start_time,
+            'sensor_coordinates': self.pressure_reciever_locations
         }
         return data
 
