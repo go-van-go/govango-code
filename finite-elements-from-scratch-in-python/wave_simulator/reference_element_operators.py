@@ -1,5 +1,4 @@
 import numpy as np
-from math import comb
 from wave_simulator.finite_elements import LagrangeElement
 
 

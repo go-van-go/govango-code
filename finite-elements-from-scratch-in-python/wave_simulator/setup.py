@@ -21,6 +21,7 @@ from wave_simulator.input_parser import (
     OutputIntervals,
 )
 
+
 class SimulationSetup:
     def __init__(self, config_path: Path, base_output_dir: str = "outputs"):
         self.config_path = Path(config_path)
@@ -46,9 +47,9 @@ class SimulationSetup:
         cfg = self.cfg
         # create a finite element
         finite_element = LagrangeElement(
-            d = 3,
-            n = cfg.solver.polynomial_order
-        ) 
+            d=3,
+            n=cfg.solver.polynomial_order
+        )
 
         mesh = Mesh3d(
             finite_element=finite_element,
@@ -86,8 +87,8 @@ class SimulationSetup:
             'nz': mesh.nz,
             'reference_element': mesh.reference_element,
             'initialize_gmsh': mesh.initialize_gmsh,
-            'speed_per_cell': mesh.speed[0,:],  # First row only
-            'density_per_cell': mesh.density[0,:]  # First row only
+            'speed_per_cell': mesh.speed[0, :],  # First row only
+            'density_per_cell': mesh.density[0, :]  # First row only
         }
         return mesh_data
 
@@ -99,8 +100,8 @@ class SimulationSetup:
 
     def get_mesh_directory(self):
         mesh_hash = self._get_mesh_hash()
-        return Path(f"inputs/meshes/{mesh_hash}") 
-        
+        return Path(f"inputs/meshes/{mesh_hash}")
+
     def _get_mesh_hash(self):
         """
         Create a short hash from mesh-related parameters.
@@ -111,10 +112,11 @@ class SimulationSetup:
             "inclusion_radius": self.cfg.mesh.inclusion_radius,
             "source_center": self.cfg.source.center,
             "source_radius": self.cfg.source.radius,
+            "polynomial_order": self.cfg.solver.polynomial_order,
         }
         encoded = json.dumps(params, sort_keys=True).encode()
         return hashlib.sha1(encoded).hexdigest()[:10]
-       
+
     def _resolve_output_path(self):
         cfg = self.cfg
         name = (
@@ -141,11 +143,11 @@ class SimulationSetup:
         shutil.copy(self.config_path, self.output_path / "parameters.toml")
 
     def build_simulator(self):
-        # get mesh
-        mesh = self.create_mesh()
-
         # get parameters from parameters.toml
         cfg = self.cfg
+
+        # get mesh
+        mesh = self.create_mesh()
 
         physics = LinearAcoustics(
             mesh=mesh,
@@ -163,10 +165,10 @@ class SimulationSetup:
 
         sim = Simulator(time_stepper,
                         output_path=self.output_path,
-                        save_image_interval = cfg.output_intervals.image,
-                        save_points_interval = cfg.output_intervals.points,
-                        save_data_interval = cfg.output_intervals.data,
-                        save_energy_interval = cfg.output_intervals.energy,
+                        save_image_interval=cfg.output_intervals.image,
+                        save_points_interval=cfg.output_intervals.points,
+                        save_data_interval=cfg.output_intervals.data,
+                        save_energy_interval=cfg.output_intervals.energy,
                         pressure_reciever_locations=cfg.receivers.pressure,
                         u_velocity_reciever_locations=cfg.receivers.x_velocity,
                         v_velocity_reciever_locations=cfg.receivers.y_velocity,

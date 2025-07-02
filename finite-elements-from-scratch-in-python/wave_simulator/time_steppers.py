@@ -1,5 +1,3 @@
-import pickle
-import gmsh
 import numpy as np
 from logging import getLogger
 from wave_simulator.physics import LinearAcoustics
@@ -42,7 +40,6 @@ class LowStorageRungeKutta:
         self.tau = (3 - np.sqrt(3))/6
         #self._get_source_nodes()
         self._compute_time_step_size_hesthaven()
-        n_cycles = 1
         samples_per_cycle = int(round(1 / (self.dt * self.source_frequency)))
         self.source_duration = samples_per_cycle * self.dt
         #self.source_duration = 0.01

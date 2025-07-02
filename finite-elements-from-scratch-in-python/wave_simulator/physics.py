@@ -1,6 +1,5 @@
 import numpy as np
 from wave_simulator.mesh import Mesh3d
-from wave_simulator.visualizer import Visualizer 
 
 class LinearAcoustics:
     def __init__(self,

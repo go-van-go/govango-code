@@ -3,9 +3,7 @@ import pyvista as pv
 import panel as pn
 import matplotlib.pyplot as plt
 import gmsh
-import math
-from wave_simulator.reference_element_operators import ReferenceElementOperators
-from wave_simulator.finite_elements import LagrangeElement
+
 
 class Visualizer:
     def __init__(self, mesh_data, data, grid=True):

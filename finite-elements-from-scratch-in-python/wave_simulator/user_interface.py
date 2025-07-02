@@ -1,7 +1,6 @@
-import os
 import glob
 import pickle
-import toml
+import tomli
 import panel as pn
 import matplotlib.pyplot as plt
 import pyvista as pv
@@ -13,19 +12,16 @@ pn.extension('vtk')
 
 class UserInterface:
     def __init__(self, outputs_dir='./outputs'):
-        self.outputs_dir = outputs_dir
+        self.outputs_dir = Path(outputs_dir)
         self.sim_folders = self._get_sim_folders()
 
-        # Add a blank option at the start
         sim_options = [""] + self.sim_folders
-
 
         self.selected_folder = None
         self.data_files = []
         self.visualizer = None
 
         self.sim_selector = pn.widgets.Select(name='Simulation Run', options=sim_options, value="")
-        #self.frame_slider = pn.widgets.IntSlider(name='Time', start=0, end=0, step=1)
         self.frame_selector = pn.widgets.Select(name='Timestep', options=[])
         self.refresh_button = pn.widgets.Button(name='Load Data', button_type='primary')
         self.status_text = pn.pane.HTML("", height=20)
@@ -58,16 +54,14 @@ class UserInterface:
             )
         )
 
-
     def _get_sim_folders(self):
         return sorted([
-            f for f in os.listdir(self.outputs_dir)
-            if os.path.isdir(os.path.join(self.outputs_dir, f))
+            f.name for f in self.outputs_dir.iterdir()
+            if f.is_dir()
         ])
 
     def _update_folder(self, event):
         if not event.new:
-            # Nothing selected, clear data
             self.selected_folder = None
             self.data_files = []
             self.status_text.object = "<span style='color:gray'>Select a simulation run.</span>"
@@ -75,9 +69,10 @@ class UserInterface:
             self.frame_selector.value = None
             self.refresh_button.disabled = True
             return
-        self.selected_folder = os.path.join(self.outputs_dir, event.new)
-        data_dir = os.path.join(self.selected_folder, "data")
-        self.data_files = sorted(glob.glob(f"{data_dir}/*.pkl"))
+
+        self.selected_folder = self.outputs_dir / event.new
+        data_dir = self.selected_folder / "data"
+        self.data_files = sorted(data_dir.glob("*.pkl"))
 
         if not self.data_files:
             self.status_text.object = f"<span style='color:red'>⚠️ No .pkl files found in: {data_dir}</span>"
@@ -86,35 +81,32 @@ class UserInterface:
             self.refresh_button.disabled = True
         else:
             self.status_text.object = f"<span style='color:green'>✅ Found {len(self.data_files)} data files.</span>"
-            # Build a mapping of display label → file path
             self.timestep_map = {}
             options = []
             for path in self.data_files:
-                time_str = os.path.basename(path).split("_t")[-1].split(".")[0]
+                time_str = path.name.split("_t")[-1].split(".")[0]
                 label = f"t = {time_str}"
                 self.timestep_map[label] = path
                 options.append(label)
-            
+
             self.frame_selector.options = options
             self.frame_selector.value = options[0]
-
             self.refresh_button.disabled = False
 
-        param_file = os.path.join(self.selected_folder, "parameters.toml")
-        if os.path.exists(param_file):
+        param_file = self.selected_folder / "parameters.toml"
+        if param_file.exists():
             html = self._format_parameters(param_file)
             self.parameters_pane.object = html
         else:
             self.parameters_pane.object = "<i>⚠️ No parameters.toml found.</i>"
 
-
-
     def _format_parameters(self, file_path):
         try:
-            parameters = toml.load(file_path)
+            with open(file_path, 'rb') as f:
+                parameters = tomli.load(f)
         except Exception as e:
             return f"<b>❌ Failed to load parameters.toml:</b> {e}"
-    
+
         html = ["<div style='font-family: monospace; font-size: 12px;'>"]
         for section, values in parameters.items():
             html.append(f"<h4>[{section}]</h4><ul style='margin-top: 0;'>")
@@ -140,28 +132,25 @@ class UserInterface:
         if not self.data_files:
             self.status_text.object = "<span style='color:red'>⚠️ No data loaded.</span>"
             return
-    
+
         try:
             data_path = self.timestep_map[self.frame_selector.value]
-    
-            # Load timestep-specific data
+
             with open(data_path, 'rb') as f:
                 data = pickle.load(f)
-    
-            # Load mesh data
-            mesh_data = data['mesh_directory'] / "mesh.pkl"
-            if mesh_data.exists():
-                with open(mesh_data, 'rb') as mf:
+
+            mesh_path = data['mesh_directory'] / "mesh.pkl"
+            if mesh_path.exists():
+                with open(mesh_path, 'rb') as mf:
                     mesh_data = pickle.load(mf)
             else:
                 self.status_text.object = "<span style='color:red'>❌ mesh.pkl not found.</span>"
                 return
-    
+
             self.visualizer = Visualizer(mesh_data, data)
             tracked_fig = self.visualizer.plot_tracked_points()
             energy_fig = self.visualizer.plot_energy()
-            # Try to load runtime from the first available data file
-            # Append runtime info to parameters pane
+
             runtime_sec = data.get("runtime", None)
             if runtime_sec is not None:
                 hours = int(runtime_sec // 3600)
@@ -176,17 +165,15 @@ class UserInterface:
             else:
                 self.runtime_pane.object = "<i>⚠️ Runtime not recorded.</i>"
 
+            time_step = int(data_path.name.split("_t")[-1].split(".")[0])
+            image_path = self.selected_folder / "images" / f"t_{time_step:08d}.png"
 
-            # Get image corresponding to current timestep
-            time_step = int(os.path.basename(data_path).split("_t")[-1].split(".")[0])
-            image_path = os.path.join(self.selected_folder, "images", f"t_{time_step:08d}.png")
-    
             image_pane = (
-                pn.pane.PNG(image_path, width=550)
-                if os.path.exists(image_path)
+                pn.pane.PNG(str(image_path), width=550)
+                if image_path.exists()
                 else pn.pane.Markdown("**⚠️ No image found for this timestep.**")
             )
-    
+
             layout = pn.Row(
                 pn.Column(
                     pn.pane.HTML("<b>Receivers</b>"),
@@ -199,9 +186,8 @@ class UserInterface:
                     image_pane,
                 )
             )
-    
             self.content.objects = [layout]
-            self.status_text.object = f"<span style='color:green'>✅ Loaded frame: {os.path.basename(data_path)}</span>"
+            self.status_text.object = f"<span style='color:green'>✅ Loaded frame: {data_path.name}</span>"
         except Exception as e:
             self.status_text.object = f"<span style='color:red'>❌ Error loading frame: {e}</span>"
 

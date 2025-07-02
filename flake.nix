@@ -21,9 +21,10 @@
               (pkgs.python312.withPackages (python-pkgs: [
               # packages for formatting/ IDE
                 python-pkgs.python-lsp-server
+		python-pkgs.flake8
               # packages for code
                 python-pkgs.gmsh
-		python-pkgs.ipympl
+		#python-pkgs.ipympl
                 python-pkgs.matplotlib
 		python-pkgs.numpy
 		python-pkgs.numba

@@ -11,13 +11,13 @@ outer_density = 1.0
 outer_wave_speed = 1.0
 
 [mesh]
-grid_size = 0.01
+grid_size = 0.008
 box_size = 0.25
 inclusion_radius = 0.05
 
 [solver]
 total_time = 0.4
-polynomial_order = 3
+polynomial_order = 2
 
 [receivers]
 pressure   = [[0.125, 0.125, 0.0],

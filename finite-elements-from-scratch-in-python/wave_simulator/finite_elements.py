@@ -1,20 +1,11 @@
 import numpy as np
 from scipy.special import gamma
 from scipy.linalg import eig
-from pathlib import Path  
 
 
 class LagrangeElement:
     """Lagrange finite element defined on a triangle and
       tetrahedron"""
-    # get the base directory where the script is located, including the 'tabulated_nodes' folder
-    #nodes_path = Path(__file__).parent / "../inputs/tabulated_nodes"
-
-    # load the nodes once as a class attribute
-    #_line_nodes = np.load(nodes_path / "line_nodes.npz")
-    #_triangle_nodes = np.load(nodes_path / "triangle_nodes.npz")
-    #_tetrahedron_nodes = np.load(nodes_path / "tetrahedron_nodes.npz")
-
     def __init__(self, d, n):
         self.d = d  # dimension
         self.n = n  # polynomial order
