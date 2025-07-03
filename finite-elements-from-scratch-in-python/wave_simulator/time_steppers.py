@@ -4,14 +4,25 @@ from wave_simulator.physics import LinearAcoustics
 
 
 class LowStorageRungeKutta:
-    def __init__(self, physics: LinearAcoustics, t_initial, t_final):
+    def __init__(
+        self,
+        physics: LinearAcoustics,
+        t_initial: float,
+        t_final: float = None,
+        number_of_timesteps: int = None
+    ):
+        if (t_final is None) == (number_of_timesteps is None):
+            raise ValueError("Specify exactly one of 't_final' or 'number_of_timesteps'.")
+
         self.physics = physics
         self.t_initial = t_initial
         self.t_final = t_final
+        self.num_time_steps = number_of_timesteps
         self.t = t_initial
         self.current_time_step = 0
+
         # Runge-Kutta residual storage
-        nodes_per_cell = physics.mesh.reference_element.nodes_per_cell 
+        nodes_per_cell = physics.mesh.reference_element.nodes_per_cell
         num_cells = physics.mesh.num_cells
         self.rk4a = np.array([0.0,
                               -567301805773.0 / 1357537059087.0,
@@ -66,8 +77,17 @@ class LowStorageRungeKutta:
         d = self.physics.mesh.smallest_diameter
         cfl_safety = 0.95  # Slightly under max for safety
         dt = cfl_safety * (d / ((2 * p + 1) * c))
-        self.num_time_steps = int(np.ceil(self.t_final / dt))
-        self.dt = self.t_final / self.num_time_steps
+
+        # set dt based on either number of timesteps or total time
+        if self.t_final is not None:
+            self.dt = dt
+            self.num_time_steps = int(np.ceil(self.t_final / dt))
+            # change t_final to a multiple of dt
+            self.t_final = self.num_time_steps * self.dt
+        else:
+            self.num_time_steps = self.num_time_steps
+            self.dt = dt
+            self.t_final = self.num_time_steps * self.dt
 
     def _compute_time_step_size_xijun(self):
         """
@@ -230,9 +250,3 @@ class LowStorageRungeKutta:
         logger.info(f"Final time: {self.t_final}s")
         logger.info(f"Time step size: {self.dt:.6g}s")
         logger.info(f"Total Number of timesteps: {self.num_time_steps}")
-        logger.info("......... Running simulation .........")
-
-        #print(f"Final time: {self.t_final}s")
-        #print(f"Time step size: {self.dt:.6g}s")
-        #print(f"Total Number of timesteps: {self.num_time_steps}")
-        #print("......... Running simulation .........")

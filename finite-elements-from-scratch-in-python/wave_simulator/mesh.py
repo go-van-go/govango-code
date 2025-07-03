@@ -495,7 +495,3 @@ class Mesh3d:
         logger.info(f"Using {self.n} order Lagrange element")
         logger.info(f"Nodes per cell: {self.reference_element.nodes_per_cell}")
         logger.info(f"Number of nodes: {self.reference_element.nodes_per_cell * self.num_cells}")
-        #print(f"Number of cells: {self.num_cells}")
-        #print(f"Number of vertices: {self.num_vertices}")
-        #print(f"Nodes per cell: {self.reference_element.nodes_per_cell}")
-        #print(f"Number of nodes: {self.reference_element.nodes_per_cell * self.num_cells}")

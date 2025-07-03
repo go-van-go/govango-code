@@ -29,8 +29,8 @@ class SimulationSetup:
         self.base_output_dir = Path(base_output_dir)
         self.cfg = self._load_config()
         self.output_path = self._resolve_output_path()
-        self.prepare_output_dirs()
         self.logger = Logger(self.output_path / "log.txt")
+        self.prepare_output_dirs()
 
     def _load_config(self):
         with open(self.config_path, "rb") as f:
@@ -127,7 +127,7 @@ class SimulationSetup:
         )
         path = self.base_output_dir / name
         hash_suffix = self._hash_config()
-        path = path.with_name(f"{name}_{hash_suffix}")
+        path = path.with_name(f"{hash_suffix}_{name}")
         # leave program if the simulation has already been run
         if path.exists():
             print(f"Simulation already exists at {path}. Exiting simulation.")
@@ -158,11 +158,19 @@ class SimulationSetup:
             source_frequency=cfg.source.frequency,
         )
 
-        time_stepper = LowStorageRungeKutta(
-            physics=physics,
-            t_initial=0.0,
-            t_final=cfg.solver.total_time,
-        )
+        # create timestepper from total time or number of timesteps
+        if cfg.solver.total_time is not None:
+            time_stepper = LowStorageRungeKutta(
+                physics=physics,
+                t_initial=0.0,
+                t_final=cfg.solver.total_time,
+            )
+        elif cfg.solver.number_of_timesteps is not None:
+            time_stepper = LowStorageRungeKutta(
+                physics=physics,
+                t_initial=0.0,
+                number_of_timesteps=cfg.solver.number_of_timesteps,
+            )
 
         sensor_placer = SensorPlacer(box_size=cfg.mesh.box_size,
                                      top_sensors=cfg.receivers.top_sensors,

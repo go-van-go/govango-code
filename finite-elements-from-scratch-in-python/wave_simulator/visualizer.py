@@ -562,7 +562,7 @@ class Visualizer:
         }
     
         total_plots = sum(len(entry["points"]) for entry in self.tracked_fields.values())
-        fig, axes = plt.subplots(total_plots, 1, figsize=(10, 3.5 * total_plots), sharex=True)
+        fig, axes = plt.subplots(total_plots, 1, figsize=(60, 4.0 * total_plots), sharex=True)
     
         if total_plots == 1:
             axes = [axes]

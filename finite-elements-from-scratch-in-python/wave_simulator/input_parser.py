@@ -1,3 +1,4 @@
+import sys
 from dataclasses import dataclass, field
 from typing import List
 
@@ -28,8 +29,17 @@ class MeshConfig:
 
 @dataclass
 class SolverConfig:
-    total_time: float = 1.0
+    total_time: float = None
+    number_of_timesteps: int = None
     polynomial_order: int = 3
+
+    def __post_init__(self):
+        try:  
+            if (self.total_time is None) == (self.number_of_timesteps is None):
+                raise ValueError("You must specify exactly one of 'total_time' or 'number_of_timesteps'.")
+        except ValueError as e:
+            print(f"Error in parameters.toml file: {e}")
+            sys.exit(1)  # or handle however you like
 
 
 @dataclass

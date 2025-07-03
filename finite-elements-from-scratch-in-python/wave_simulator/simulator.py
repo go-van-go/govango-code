@@ -3,6 +3,7 @@ import math
 import pickle
 import time
 import numpy as np
+from logging import getLogger
 from wave_simulator.time_steppers import LowStorageRungeKutta
 from wave_simulator.visualizer import Visualizer
 from wave_simulator.spatial_evaluator import SpatialEvaluator
@@ -36,7 +37,7 @@ class Simulator:
         self.start_time = 0
 
         self.pressure_reciever_locations = pressure_reciever_locations
-        self.track_points(
+        self._get_sensor_information(
             pressure_reciever_locations,
             u_velocity_reciever_locations,
             v_velocity_reciever_locations,
@@ -51,15 +52,17 @@ class Simulator:
         self.initialize_energy_array()
 
     def initialize_energy_array(self):
+        # add one to number of readings for 0th reading
         self.num_readings = math.ceil(self.time_stepper.num_time_steps /
-                                      self.save_energy_interval)
+                                      self.save_energy_interval) + 1
         self.energy_data = np.zeros(self.num_readings)
         self.kinetic_data = np.zeros(self.num_readings)
         self.potential_data = np.zeros(self.num_readings)
 
-    def track_points(self, pressure=None, x=None, y=None, z=None):
+    def _get_sensor_information(self, pressure=None, x=None, y=None, z=None):
+        # add one to number of readings for 0th reading
         self.num_readings = math.ceil(self.time_stepper.num_time_steps /
-                                      self.save_points_interval)
+                                      self.save_points_interval) + 1
         self.column_index = 0
         self.tracked_fields = {}
         if pressure:
@@ -88,25 +91,31 @@ class Simulator:
             }
 
     def run(self):
+        logger = getLogger("simlog")
+        run_hash = str(self.output_path).rsplit('_', 1)[0]
+        logger.info(f"......... Running simulation {run_hash} .........")
+
         self.start_time = time.time()
-        while self.time_stepper.t < self.t_final:
+
+        while self.time_stepper.current_time_step <= self.time_stepper.num_time_steps:
             t_step = self.time_stepper.current_time_step
 
-            # check save intervalues and save accordingly
             if self.save_image_interval and t_step % self.save_image_interval == 0:
                 self._save_image()
             if self.save_data_interval and t_step % self.save_data_interval == 0:
                 self._save_data()
             if self.save_points_interval and t_step % self.save_points_interval == 0:
-                self._save_tracked_points()
+                self._evaluate_sensor_data()
             if self.save_energy_interval and t_step % self.save_energy_interval == 0:
                 self._save_energy()
 
-            # self.time_stepper.advance_time_step_rk_with_force_term()
-            self.time_stepper.advance_time_step()
             self._log_info()
+            self.time_stepper.advance_time_step()
+
+        logger.info("\n..... Simulation completed with no errors .....")
 
     def _get_source_data(self):
+
         num_time_steps = self.time_stepper.num_time_steps
         self.source_data = np.zeros(num_time_steps)
         for timestep in range(num_time_steps):
@@ -184,7 +193,7 @@ class Simulator:
         self.visualizer.set_data(self.mesh_data, data)
         self.visualizer.save()
 
-    def _save_tracked_points(self):
+    def _evaluate_sensor_data(self):
         for name, field in self.tracked_fields.items():
             values = field["data"]
             points = field["points"]
@@ -209,13 +218,13 @@ class Simulator:
         num_cells = self.mesh.num_cells
         rho = self.mesh.density[0,:]  # shape (Np, K)
         c = self.mesh.speed[0,:]      # shape (Np, K)
-        inv_bulk = 1.0 / (rho * (c**2))  # shape (Np, K)
-        
+        inv_bulk = 1.0 / (rho * (c**2))  # shape (Np, K
+
         # potential energy: (1/2) * p^2 / (rho * c^2)
         potential = np.array([p[:, i].T @ mass @ p[:, i] for i in range(num_cells)])
         potential = 0.5 * inv_bulk * j * potential
         self.potential_data[self.energy_index] = np.sum(potential)
- 
+
         # kinetic energy: (1/2) * rho * (u^2 + v^2 + w^2)
         kinetic_u = np.array([u[:, i].T @ mass @ u[:, i] for i in range(num_cells)])
         kinetic_v = np.array([v[:, i].T @ mass @ v[:, i] for i in range(num_cells)])
@@ -227,7 +236,7 @@ class Simulator:
         energy = np.sum(potential + kinetic)
         self.energy_data[self.energy_index] = energy
 
-        self.energy_index += 1       
+        self.energy_index += 1
 
     def _log_info(self):
         runtime = time.time() - self.start_time

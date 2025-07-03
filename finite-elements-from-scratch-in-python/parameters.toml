@@ -16,8 +16,8 @@ box_size = 0.25
 inclusion_radius = 0.05
 
 [solver]
-total_time = 0.4
-polynomial_order = 2
+number_of_timesteps = 100
+polynomial_order = 3
 
 [receivers]
 top_sensors = 15
